@@ -3,46 +3,61 @@ use "collections"
 use "itertools"
 
 type WirePath is SetIs[Point]
+type Steps is MapIs[Point, U64]
+type WireInfo is (WirePath val, Steps val)
+
 type Point is (I64, I64)
 
 primitive PointUtils
   fun taxicab(from: Point, to: Point): U64 =>
     (from._1 - to._1).abs() + (from._2 - to._2).abs()
 
-  fun span(from: Point, to: Point): WirePath val =>
+  fun set_span(from: Point, to: Point, init_steps: U64,
+               wpath: WirePath, steps: Steps): U64 =>
+
     if from._1 == to._1 then
-      _span_x_axis(from, to)
-    elseif from._2 == to._2 then
-      _span_y_axis(from, to)
+      _set_span_x_axis(from, to, init_steps, wpath, steps)
     else
-      recover val WirePath.create() end
+      _set_span_y_axis(from, to, init_steps, wpath, steps)
     end
 
-  fun _span_x_axis(from: Point, to: Point): WirePath val =>
+  fun _set_span_x_axis(from: Point, to: Point, init_steps: U64,
+                       wpath: WirePath, steps: Steps): U64 =>
+
     let x = from._1
     var min_y = from._2.min(to._2)
     let max_y = from._2.max(to._2)
 
-    let wpath: WirePath iso = recover iso WirePath.create((max_y - min_y).abs().usize()) end
+    var max_steps = init_steps
     while min_y <= max_y do
-      wpath.set((x, min_y))
+      let p: Point = (x, min_y)
+      let p_steps = init_steps + taxicab(from, p)
+      wpath.set(p)
+      steps.update(p, p_steps)
+      max_steps = max_steps.max(p_steps)
       min_y = min_y + 1
     end
 
-    recover val wpath end
+    max_steps
 
-  fun _span_y_axis(from: Point, to: Point): WirePath val =>
+  fun _set_span_y_axis(from: Point, to: Point, init_steps: U64,
+                       wpath: WirePath, steps: Steps): U64 =>
+
     let y = from._2
     var min_x = from._1.min(to._1)
     let max_x = from._1.max(to._1)
 
-    let wpath: WirePath iso = recover iso WirePath.create((max_x - min_x).abs().usize()) end
+    var max_steps = init_steps
     while min_x <= max_x do
-      wpath.set((min_x, y))
+      let p: Point = (min_x, y)
+      let p_steps = init_steps + taxicab(from, p)
+      wpath.set(p)
+      steps.update(p, p_steps)
+      max_steps = max_steps.max(p_steps)
       min_x = min_x + 1
     end
 
-    recover val wpath end
+    max_steps
 
   fun apply_op(point: Point, op: Op): Point =>
     match op
@@ -54,20 +69,16 @@ primitive PointUtils
       point
     end
 
-  fun path_from_ops(from: Point, ops: Array[Op] val): WirePath val =>
-    let wpath = recover iso WirePath.create() end
-
+  fun fill_path_from_ops(from: Point, ops: Array[Op] val, wpath: WirePath, steps: Steps)=>
+    var current_steps: U64 = 0
     var current_point = from
+
     for op in ops.values() do
       let dst = apply_op(current_point, op)
-      let span_points = span(current_point, dst)
-      for point in span_points.values() do
-        wpath.set(point)
-      end
+      let span_max = set_span(current_point, dst, current_steps, wpath, steps)
+      current_steps = current_steps.max(span_max)
       current_point = dst
     end
-
-    recover val wpath end
 
 primitive Left
 primitive Right
@@ -132,21 +143,28 @@ actor Main
       with file = OpenFile(FilePath(env.root as AmbientAuth, path, caps)?) as File do
 
       let origin: Point = (0, 0)
-      let input = Iter[String](file.lines())
-                      .map[WirePath val]({(line) => PointUtils.path_from_ops(origin, ParseUtil.parse_ops(line))})
-                      .collect(Array[WirePath val](2))
+      let input_ops = Iter[String](file.lines())
+                          .map[Array[Op] val]({(line) => ParseUtil.parse_ops(line)})
+                          .collect(Array[Array[Op] val](2))
 
-      let first = input(0)?.clone()
-      let second = input(1)?.clone()
-      first.intersect(second)
-      first.unset(origin)
+      let first_wire = WirePath()
+      let first_steps = Steps()
+      PointUtils.fill_path_from_ops(origin, input_ops(0)?, first_wire, first_steps)
 
-      var min_distance = U64.max_value()
-      for point in first.values() do
-        min_distance = min_distance.min(PointUtils.taxicab(origin, point))
+      let second_wire = WirePath()
+      let second_steps = Steps()
+      PointUtils.fill_path_from_ops(origin, input_ops(1)?, second_wire, second_steps)
+
+      first_wire.intersect(second_wire)
+      first_wire.unset(origin)
+
+      var min_cost = U64.max_value()
+      for point in first_wire.values() do
+        let point_steps = first_steps(point)? + second_steps(point)?
+        min_cost = min_cost.min(point_steps)
       end
 
-      env.out.print(min_distance.string())
+      env.out.print(min_cost.string())
     end
     else
       env.out.print("Couldn't open ".add(path))
