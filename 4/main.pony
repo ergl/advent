@@ -1,7 +1,7 @@
 actor Main
   fun valid(arr: Array[U8]): Bool =>
     try
-      let repeats = Array[Bool].init(false, 10)
+      let repeats = Array[U8].init(0, 10)
       var prev = arr(0)?
       var idx = USize(1)
       var n = U8(0)
@@ -9,12 +9,15 @@ actor Main
         n = arr(idx)?
         if n < prev then
           return false
+        elseif n == prev then
+          let prev_c = repeats(n.usize())?
+          let incr = if prev_c == 0 then 2 else 1 end
+          repeats.update(n.usize(), prev_c + incr)?
         end
-        repeats.update(n.usize(), (n == prev))?
         prev = n
         idx = idx + 1
       end
-      repeats.contains(true)
+      repeats.contains(2)
     else
       false
     end
