@@ -54,11 +54,12 @@ actor Main is Amplifier
   var _program: Array[I64] val
 
   be add_next(amp: Amplifier) => None
+  be add_sink(amp: Amplifier) => None
 
-  be receive(i: I64) =>
+  be receive(i: I64) => None
+  be receive_sink(i: I64) =>
     match _current_phase
     | let p: Phase =>
-      _out.print("Received msg ".add(i.string()).add(" from phase ").add(Utils.to_string(p)))
       _max_so_far = _max_so_far.max(i)
       _out.print("Max so far: ".add(_max_so_far.string()))
     end
@@ -83,7 +84,8 @@ actor Main is Amplifier
     program_b.add_next(program_c)
     program_c.add_next(program_d)
     program_d.add_next(program_e)
-    program_e.add_next(this)
+    program_e.add_next(program_a)
+    program_e.add_sink(this)
 
     program_a.turn_on()
     program_b.turn_on()
@@ -124,5 +126,5 @@ actor Main is Amplifier
     _out = env.out
     _timer_wheel = Timers
     _program = load_file(env, "./7/input.txt")
-    _phase_iter = Utils.permute([as I64: 0; 1; 2; 3; 4])
+    _phase_iter = Utils.permute([as I64: 5; 6; 7; 8; 9])
     solve_permutations()

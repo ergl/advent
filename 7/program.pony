@@ -2,7 +2,9 @@ use "time"
 
 interface tag Amplifier
   be receive(i: I64)
+  be receive_sink(i: I64)
   be add_next(amp: Amplifier)
+  be add_sink(amp: Amplifier)
 
 class StepTimer is TimerNotify
   let _exec: ProgramExecutor
@@ -19,6 +21,8 @@ class StepTimer is TimerNotify
 
 actor ProgramExecutor is Amplifier
   var _next: (Amplifier | None) = None
+  var _sink: (Amplifier | None) = None
+
   let _inbox: IOQueue
   let _program: Program
   let _timer_wheel: Timers
@@ -31,11 +35,18 @@ actor ProgramExecutor is Amplifier
     _timer_wheel = wheel
 
   be add_next(amp: Amplifier) => _next = amp
+  be add_sink(amp: Amplifier) => _sink = amp
+
   be receive(i: I64) => _inbox.put(i)
+  be receive_sink(i: I64) => None
 
   be send_output(elt: I64) =>
     match _next
     | let amp: Amplifier => amp.receive(elt)
+    end
+
+    match _sink
+    | let amp: Amplifier => amp.receive_sink(elt)
     end
 
   be turn_on() =>
