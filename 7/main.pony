@@ -1,20 +1,29 @@
 use "files"
 use "itertools"
+use "time"
 
 primitive Utils
   fun parse_input(input: String): I64 =>
     try input.i64()? else 0 end
 
-  fun to_string(arr: Array[I64]): String =>
+  fun to_string(arr: Phase): String =>
     Iter[I64](arr.values())
       .fold[String]("[", {(acc, elt) => acc.add(elt.string().add(";"))}).add("]")
 
-  fun permutations(input: Array[I64]): Array[Array[I64]]? =>
-    let acc = Array[Array[I64]].create()
-    _permute(input, 0, acc)?
+  fun permute(phase: Phase): Iter[Phase] =>
+    let target = try
+      permutations(phase)?.values()
+    else
+      [phase].values()
+    end
+    Iter[Phase](target)
+
+  fun permutations(input: Phase): Array[Phase]? =>
+    let acc = Array[Phase].create()
+    _permute(input.clone(), 0, acc)?
     acc
 
-  fun _permute(input: Array[I64], k: USize, acc: Array[Array[I64]])? =>
+  fun _permute(input: Array[I64], k: USize, acc: Array[Phase])? =>
     let size = input.size()
     var idx = k
     while idx < size do
@@ -32,74 +41,88 @@ primitive Utils
       acc.push(consume input_clone)
     end
 
-actor Main
-  var path: String = "./7/input.txt"
+type Phase is Array[I64] val
 
-  fun ref run_for_combination(program_mem: Array[I64] val, settings: Array[I64]): I64? =>
-    let stdin = IOQueue.create().>put(settings(0)?).>put(0)
-    let std_io_1 = IOQueue.create().>put(settings(1)?)
-    let std_io_2 = IOQueue.create().>put(settings(2)?)
-    let std_io_3 = IOQueue.create().>put(settings(3)?)
-    let std_io_4 = IOQueue.create().>put(settings(4)?)
-    let stdout = IOQueue.create()
+actor Main is Amplifier
+  let _timer_wheel: Timers
 
-    let program_a = Program.create(stdin, std_io_1, program_mem)
-    let program_b = Program.create(std_io_1, std_io_2, program_mem)
-    let program_c = Program.create(std_io_2, std_io_3, program_mem)
-    let program_d = Program.create(std_io_3, std_io_4, program_mem)
-    let program_e = Program.create(std_io_4, stdout, program_mem)
+  let _out: OutStream
+  var _max_so_far: I64 = 0
+  var _current_phase: (Phase | None) = None
+  var _phase_iter: Iter[Phase]
 
-    while not program_a.finished do
-      program_a.step()
+  var _program: Array[I64] val
+
+  be add_next(amp: Amplifier) => None
+
+  be receive(i: I64) =>
+    match _current_phase
+    | let p: Phase =>
+      _out.print("Received msg ".add(i.string()).add(" from phase ").add(Utils.to_string(p)))
+      _max_so_far = _max_so_far.max(i)
+      _out.print("Max so far: ".add(_max_so_far.string()))
     end
 
-    while not program_b.finished do
-      program_b.step()
+    solve_permutations()
+
+  fun ref _run_for_combination(phase: Phase)? =>
+    let program_a = ProgramExecutor.create(_timer_wheel, _program)
+    let program_b = ProgramExecutor.create(_timer_wheel, _program)
+    let program_c = ProgramExecutor.create(_timer_wheel, _program)
+    let program_d = ProgramExecutor.create(_timer_wheel, _program)
+    let program_e = ProgramExecutor.create(_timer_wheel, _program)
+
+    program_a.receive(phase(0)?)
+    program_a.receive(0)
+    program_b.receive(phase(1)?)
+    program_c.receive(phase(2)?)
+    program_d.receive(phase(3)?)
+    program_e.receive(phase(4)?)
+
+    program_a.add_next(program_b)
+    program_b.add_next(program_c)
+    program_c.add_next(program_d)
+    program_d.add_next(program_e)
+    program_e.add_next(this)
+
+    program_a.turn_on()
+    program_b.turn_on()
+    program_c.turn_on()
+    program_d.turn_on()
+    program_e.turn_on()
+
+  fun tag load_file(env: Env, path: String): Array[I64] val =>
+    let caps = recover val FileCaps.>set(FileRead).>set(FileStat) end
+    let program_arr: Array[I64] val = try
+      let file = OpenFile(FilePath(env.root as AmbientAuth, path, caps)?) as File
+      let arr: Array[I64] val = recover val
+        Iter[String](file.read_string(file.size()).split_by(",").values())
+          .map[I64]({(elt) => Utils.parse_input(elt)})
+          .collect(Array[I64](10))
+      end
+      file.dispose()
+      arr
+    else
+      env.out.print("Couldn't open ".add(path).add(", returning default program"))
+      [as I64: 3;15;3;16;1002;16;10;16;1;16;15;15;4;15;99;0;0]
     end
 
-    while not program_c.finished do
-      program_c.step()
-    end
+    program_arr
 
-    while not program_d.finished do
-      program_d.step()
-    end
-
-    while not program_e.finished do
-      program_e.step()
-    end
-
-    match stdout.get()
-    | None => error
-    | let i: I64 => i
+  be solve_permutations() =>
+    try
+      if _phase_iter.has_next() then
+        match _phase_iter.next()?
+        | let p: Phase =>
+          _current_phase = p
+          _run_for_combination(p)?
+        end
+      end
     end
 
   new create(env: Env) =>
-    let caps = recover val FileCaps.>set(FileRead).>set(FileStat) end
-    try
-      with file = OpenFile(FilePath(env.root as AmbientAuth, path, caps)?) as File
-      do
-        let program_arr: Array[I64] val = recover val
-          Iter[String](file.read_string(file.size()).split_by(",").values())
-            .map[I64]({(elt) => Utils.parse_input(elt)})
-            .collect(Array[I64](10))
-        end
-
-        var answer: I64 = 0
-        var max_so_far: I64 = 0
-        let arrs = Utils.permutations([as I64: 0; 1; 2; 3; 4])?
-        for phase_arr in arrs.values() do
-          env.out.print("Try: ".add(Utils.to_string(phase_arr)))
-
-          answer = run_for_combination(program_arr, phase_arr)?
-          env.out.print("Answer: ".add(answer.string()))
-
-          max_so_far = max_so_far.max(answer)
-          env.out.print("Max so far is ".add(max_so_far.string()))
-        end
-
-        env.out.print("Max is ".add(max_so_far.string()))
-      end
-    else
-      env.out.print("Couldn't open ".add(path))
-    end
+    _out = env.out
+    _timer_wheel = Timers
+    _program = load_file(env, "./7/input.txt")
+    _phase_iter = Utils.permute([as I64: 0; 1; 2; 3; 4])
+    solve_permutations()

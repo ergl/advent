@@ -1,3 +1,58 @@
+use "time"
+
+interface tag Amplifier
+  be receive(i: I64)
+  be add_next(amp: Amplifier)
+
+class StepTimer is TimerNotify
+  let _exec: ProgramExecutor
+
+  new create(exec: ProgramExecutor) =>
+    _exec = exec
+
+  fun ref apply(timer: Timer, count: U64): Bool =>
+    _exec.step()
+    true
+
+  fun ref cancel(timer: Timer) =>
+    None
+
+actor ProgramExecutor is Amplifier
+  var _next: (Amplifier | None) = None
+  let _inbox: IOQueue
+  let _program: Program
+  let _timer_wheel: Timers
+  var _timer_handle: (Timer tag | None) = None
+
+  new create(wheel: Timers, memory: Array[I64] val) =>
+    _inbox = IOQueue.create()
+    let send_fn = {(elt: I64)(that=this) => that.send_output(elt)}
+    _program = Program.create(_inbox, send_fn, memory)
+    _timer_wheel = wheel
+
+  be add_next(amp: Amplifier) => _next = amp
+  be receive(i: I64) => _inbox.put(i)
+
+  be send_output(elt: I64) =>
+    match _next
+    | let amp: Amplifier => amp.receive(elt)
+    end
+
+  be turn_on() =>
+    let step_timer = recover StepTimer(this) end
+    let timer_handle = Timer(consume step_timer, 5_000_000, 2_000_000)
+    // Keep the tag around to cancel it in the future
+    _timer_handle = recover tag timer_handle end
+    _timer_wheel(consume timer_handle)
+
+  be step() =>
+    _program.step()
+    if _program.finished then
+      match _timer_handle
+      | let t: Timer tag => _timer_wheel.cancel(t)
+      end
+    end
+
 class ref IOQueue
   let _buffer: Array[I64]
 
@@ -16,16 +71,16 @@ class Program
   var _pc: USize
   var _memory: Array[I64]
   let _in_queue: IOQueue
-  let _out_queue: IOQueue
+  let _out_fn: {(I64): None}
   var finished: Bool = false
 
-  new create(in_queue: IOQueue, out_queue: IOQueue, arr: Array[I64] val) =>
+  new create(in_queue: IOQueue, out_fn: {(I64): None}, arr: Array[I64] val) =>
     _memory = arr.clone()
     _pc = 0
     _op_len = 5
     _current_op = Array[U8].init(0, _op_len)
     _in_queue = in_queue
-    _out_queue = out_queue
+    _out_fn = out_fn
 
   fun ref _parse_op(i: I64) =>
     try
@@ -68,7 +123,7 @@ class Program
       error
     end
 
-    _out_queue.put(target)
+    _out_fn.apply(target)
     _pc = _pc + 2
 
   fun ref _execute_jit()? =>
