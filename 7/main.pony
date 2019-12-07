@@ -36,12 +36,12 @@ actor Main
   var path: String = "./7/input.txt"
 
   fun ref run_for_combination(program_mem: Array[I64] val, settings: Array[I64]): I64? =>
-    let stdin = Array[I64].create(2).>push(settings(0)?).>push(0)
-    let std_io_1 = Array[I64].create(2).>push(settings(1)?)
-    let std_io_2 = Array[I64].create(2).>push(settings(2)?)
-    let std_io_3 = Array[I64].create(2).>push(settings(3)?)
-    let std_io_4 = Array[I64].create(2).>push(settings(4)?)
-    let stdout = Array[I64].create(1)
+    let stdin = IOQueue.create().>put(settings(0)?).>put(0)
+    let std_io_1 = IOQueue.create().>put(settings(1)?)
+    let std_io_2 = IOQueue.create().>put(settings(2)?)
+    let std_io_3 = IOQueue.create().>put(settings(3)?)
+    let std_io_4 = IOQueue.create().>put(settings(4)?)
+    let stdout = IOQueue.create()
 
     let program_a = Program.create(stdin, std_io_1, program_mem)
     let program_b = Program.create(std_io_1, std_io_2, program_mem)
@@ -69,8 +69,10 @@ actor Main
       program_e.step()
     end
 
-    stdout(0)?
-
+    match stdout.get()
+    | None => error
+    | let i: I64 => i
+    end
 
   new create(env: Env) =>
     let caps = recover val FileCaps.>set(FileRead).>set(FileStat) end
