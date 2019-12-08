@@ -66,14 +66,14 @@ primitive Colors
     end
 
 actor Main
-  let _wide: U64 = 25
-  let _tall: U64 = 6
+  let _wide: U64 = 46
+  let _tall: U64 = 36
 
   new create(env: Env) =>
     let layer_size = (_wide * _tall).usize()
     let top_layer = recover val
       let inner: Layer ref = Layer.init(Transparent, layer_size)
-      Utils.process_file(env, "./8/input.txt", layer_size, inner)
+      Utils.process_file(env, "./8/big_boy.txt", layer_size, inner)
       inner
     end
 
