@@ -1,6 +1,5 @@
 use "files"
 use "itertools"
-use "buffered"
 
 primitive Black
   fun string(): String => "⬛️"
@@ -13,11 +12,28 @@ type Color is (Black | White | Transparent)
 type Layer is Array[Color] val
 type Image is Array[Color] val
 
-actor Main
-  let _wide: U64 = 25
-  let _tall: U64 = 6
+primitive Utils
+  fun process_file(env: Env, path: String, layer_size: USize, layer_buff: Layer ref) =>
+    let caps = recover val FileCaps.>set(FileRead).>set(FileStat) end
+    try
+      let file = OpenFile(FilePath(env.root as AmbientAuth, path, caps)?) as File
+      let file_size = file.size()
+      var cursor = file.position()
+      while cursor < file_size do
+        let color_buffer = Iter[U8](file.read(layer_size).values())
+          .map[Color]({(elt)? => Colors.to_color(elt)?})
+          .collect(Layer)
 
-  fun from_ascii(i: U8): U8? =>
+        Colors.stack_layers(layer_size, layer_buff, color_buffer)?
+        cursor = file.position()
+      end
+      file.dispose()
+    else
+      env.out.print("Process error")
+    end
+
+primitive Colors
+  fun _from_ascii(i: U8): U8? =>
     match i
     | 48 => 0
     | 49 => 1
@@ -25,7 +41,7 @@ actor Main
     else error
     end
 
-  fun to_color(i: U8): Color? =>
+  fun _to_color(i: U8): Color? =>
     match i
     | 0 => Black
     | 1 => White
@@ -33,27 +49,8 @@ actor Main
     else error
     end
 
-  fun load_file(env: Env, path: String, default: Image): Image =>
-    let r = Reader
-    let caps = recover val FileCaps.>set(FileRead).>set(FileStat) end
-    try
-      let file = OpenFile(FilePath(env.root as AmbientAuth, path, caps)?) as File
-      let str = file.read_string(file.size())
-      let arr = recover Image end
-      r.append(consume str)
-      while true do
-        try
-          let v = r.u8()?
-          arr.push(to_color(from_ascii(v)?)?)
-        else
-          break
-        end
-      end
-      file.dispose()
-      arr
-    else
-      default
-    end
+  fun to_color(i: U8): Color? =>
+    _to_color(_from_ascii(i)?)?
 
   fun stack_colors(top: Color, bottom: Color): Color =>
     match top
@@ -68,25 +65,30 @@ actor Main
       idx = idx + 1
     end
 
+actor Main
+  let _wide: U64 = 25
+  let _tall: U64 = 6
+
   new create(env: Env) =>
-    try
-      let layer_size = (_wide * _tall).usize()
-      let top_layer = Array[Color].init(Transparent, layer_size)
+    let layer_size = (_wide * _tall).usize()
+    let top_layer = recover val
+      let inner: Layer ref = Layer.init(Transparent, layer_size)
+      Utils.process_file(env, "./8/input.txt", layer_size, inner)
+      inner
+    end
 
-      let values = Iter[Color](load_file(env, "./8/input.txt", []).values())
-      while values.has_next() do
-        let bottom_layer = values.take(layer_size).collect(Layer)
-        stack_layers(layer_size, top_layer, bottom_layer)?
-      end
-
+    let string = recover
+      let inner = String.create()
       var idx: USize = 0
       for v in top_layer.values() do
         if idx.u64().mod(_wide) == 0 then
-          env.out.print("")
+          inner.push('\n')
         end
-        env.out.write(v.string())
+        inner.concat(v.string().values())
         idx = idx + 1
       end
-      env.out.print("")
+      inner.push('\n')
+      inner
     end
 
+    env.out.print(consume string)
