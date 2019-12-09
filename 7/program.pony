@@ -51,13 +51,13 @@ class Program
     end
 
   fun _get_target_arg(): USize =>
-    match _current_instruction.opcode()
-    | Input =>
-      let target_pos = _memory(_pc + 1)
-      match _current_instruction.first_mode()
-      | Relative => (_relative_offset + target_pos).usize()
-      else target_pos.usize() end
-    else _memory(_pc + 3).usize() end
+    (let target_pos, let mode) = match _current_instruction.opcode()
+    | Input => (_memory(_pc + 1), _current_instruction.first_mode())
+    else (_memory(_pc + 3), _current_instruction.third_mode()) end
+
+    match mode
+    | Relative => (_relative_offset + target_pos).usize()
+    else target_pos.usize() end
 
   fun ref _execute_add() =>
     _memory(_get_target_arg()) = _get_first_arg() + _get_second_arg()
