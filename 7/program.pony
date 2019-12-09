@@ -6,7 +6,7 @@ class Memory
   new create(program: Array[I64] val) =>
     let len = program.size()
     _mem = MapIs[USize, I64].create(len)
-    for i in Range.create(0, len - 1) do
+    for i in Range.create(0, len) do
       _mem.insert(i, try program(i)? else 0 end)
     end
 
