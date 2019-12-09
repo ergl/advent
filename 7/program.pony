@@ -99,8 +99,7 @@ class Program
 
   fun ref step() =>
     let inst_number = _memory(_pc)
-    _current_instruction.parse(inst_number)
-    match _current_instruction.opcode()
+    match _current_instruction.>parse(inst_number).opcode()
     | Halt => finished = true
     | Add => _execute_add()
     | Mul => _execute_mul()
