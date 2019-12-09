@@ -2,6 +2,7 @@ class Program
   var _pc: USize
   let _in_queue: IOQueue
   let _memory: Array[I64]
+  var _relative_offset: I64
   let _out_fn: {(I64): None}
   var finished: Bool = false
   let _current_instruction: Instruction
@@ -9,6 +10,7 @@ class Program
   new create(in_queue: IOQueue, out_fn: {(I64): None}, arr: Array[I64] val) =>
     _pc = 0
     _out_fn = out_fn
+    _relative_offset = 0
     _in_queue = in_queue
     _memory = arr.clone()
     _current_instruction = Instruction.create(5)
@@ -18,6 +20,7 @@ class Program
     match _current_instruction.first_mode()
     | Immediate => content
     | Position => _memory(content.usize())?
+    | Relative => _memory((_relative_offset + content).usize())?
     end
 
   fun _get_second_arg(): I64? =>
@@ -25,11 +28,17 @@ class Program
     match _current_instruction.second_mode()
     | Immediate => content
     | Position => _memory(content.usize())?
+    | Relative => _memory((_relative_offset + content).usize())?
     end
 
   fun _get_target_arg(): USize? =>
     match _current_instruction.opcode()
-    | Input => _memory(_pc + 1)?.usize()
+    | Input =>
+      let target_pos = _memory(_pc + 1)?
+      match _current_instruction.first_mode()
+      | Position => target_pos.usize()
+      | Relative => (_relative_offset + target_pos).usize()
+      else error end
     else _memory(_pc + 3)?.usize() end
 
   fun ref _execute_add()? =>
@@ -66,6 +75,10 @@ class Program
     _memory(_get_target_arg()?)? = if _get_first_arg()? == _get_second_arg()? then 1 else 0 end
     _pc = _pc + 4
 
+  fun ref _execute_offset()? =>
+    _relative_offset = _relative_offset + _get_first_arg()?
+    _pc = _pc + 2
+
   fun ref step() =>
     try
       let inst_number = _memory(_pc)?
@@ -80,5 +93,6 @@ class Program
       | JF => _execute_jif()?
       | Lt => _execute_lt()?
       | Eq => _execute_eq()?
+      | Offset => _execute_offset()?
       end
     end

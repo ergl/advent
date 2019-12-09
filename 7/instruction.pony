@@ -6,12 +6,14 @@ primitive JT
 primitive JF
 primitive Lt
 primitive Eq
+primitive Offset
 primitive Halt
-type Opcode is (Add | Mul | Input | Output | JT | JF | Lt | Eq | Halt)
+type Opcode is (Add | Mul | Input | Output | JT | JF | Lt | Eq | Offset | Halt)
 
 primitive Position
 primitive Immediate
-type Mode is (Position | Immediate)
+primitive Relative
+type Mode is (Position | Immediate | Relative)
 
 class Instruction
   let _len: USize
@@ -48,6 +50,7 @@ class Instruction
       | (_, 6) => JF
       | (_, 7) => Lt
       | (_, 8) => Eq
+      | (_, 9) => Offset
     else
       Halt
     end
@@ -66,5 +69,6 @@ class Instruction
     match mode
     | 0 => Position
     | 1 => Immediate
+    | 2 => Relative
     else Position
     end
