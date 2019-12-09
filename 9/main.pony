@@ -20,11 +20,18 @@ primitive FileUtils
 
 actor Main
   new create(env: Env) =>
-    let out_fn = {(elt: I64)(env) => env.out.print(elt.string())}
-
-    let queue = IOQueue.>put(1)
     let code = FileUtils.load_file(env, "./9/input.txt", [])
-    let program = Program.create(queue, out_fn, code)
-    while not program.finished do
-      program.step()
+
+    let queue_1 = IOQueue.>put(1)
+    let out_fn_1 = {(elt: I64)(env) => env.out.print("Part 1: ".add(elt.string()))}
+    let program_1 = Program.create(queue_1, out_fn_1, code)
+    while not program_1.finished do
+      program_1.step()
+    end
+
+    let queue_2 = IOQueue.>put(2)
+    let out_fn_2 = {(elt: I64)(env) => env.out.print("Part 2: ".add(elt.string()))}
+    let program_2 = Program.create(queue_2, out_fn_2, code)
+    while not program_2.finished do
+      program_2.step()
     end
