@@ -73,7 +73,7 @@ actor Main
     let layer_size = (_wide * _tall).usize()
     let top_layer = recover val
       let inner: Layer ref = Layer.init(Transparent, layer_size)
-      Utils.process_file(env, "./8/big_boy.txt", layer_size, inner)
+      Utils.process_file(env, "./08/big_boy.txt", layer_size, inner)
       inner
     end
 

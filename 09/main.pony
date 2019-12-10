@@ -1,4 +1,4 @@
-use "package:../7"
+use "package:../07"
 use "files"
 use "itertools"
 
@@ -20,7 +20,7 @@ primitive FileUtils
 
 actor Main
   new create(env: Env) =>
-    let code = FileUtils.load_file(env, "./9/input.txt", [])
+    let code = FileUtils.load_file(env, "./09/input.txt", [])
 
     let queue_1 = IOQueue.>put(1)
     let out_fn_1 = {(elt: I64)(env) => env.out.print("Part 1: ".add(elt.string()))}

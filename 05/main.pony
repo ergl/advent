@@ -147,7 +147,7 @@ class Program
     end
 
 actor Main
-  var path: String = "./5/input.txt"
+  var path: String = "./05/input.txt"
 
   new create(env: Env) =>
     let caps = recover val FileCaps.>set(FileRead).>set(FileStat) end

@@ -2,7 +2,7 @@ use "files"
 use "itertools"
 
 actor Main
-  var path: String = "./2/input.txt"
+  var path: String = "./02/input.txt"
   let example: Array[U64] = [1;9;10;3;2;3;11;0;99;30;40;50]
   let program_result: U64 = 19690720
 

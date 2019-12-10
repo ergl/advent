@@ -126,7 +126,7 @@ primitive Util
     "(".add(p._1.string()).add(",").add(p._2.string()).add(")")
 
 actor Main
-  var path: String = "./3/input.txt"
+  var path: String = "./03/input.txt"
   let example_1: (String, String) = (
     "R75,D30,R83,U83,L12,D49,R71,U7,L72",
     "U62,R66,U55,R34,D71,R55,D58,R83"

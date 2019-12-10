@@ -3,7 +3,7 @@ use "collections"
 use "itertools"
 
 actor Main
-  var path: String = "./1/input.txt"
+  var path: String = "./01/input.txt"
 
   fun _get_fuel(number: U64): U64 =>
     let partial = number.f64().div(3.0).floor().u64()

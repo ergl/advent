@@ -86,6 +86,6 @@ actor Main is Amplifier
   new create(env: Env) =>
     _out = env.out
     _timer_wheel = Timers
-    _program = load_file(env, "./7/input.txt")
+    _program = load_file(env, "./07/input.txt")
     _phase_iter = Utils.permute([as I64: 5; 6; 7; 8; 9])
     solve_permutations()
