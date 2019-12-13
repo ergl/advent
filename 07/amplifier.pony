@@ -6,10 +6,13 @@ interface tag Amplifier
   be add_next(amp: Amplifier)
   be add_sink(amp: Amplifier)
 
-class StepTimer is TimerNotify
-  let _exec: ProgramExecutor
+interface tag Executor
+  be step()
 
-  new create(exec: ProgramExecutor) =>
+class StepTimer is TimerNotify
+  let _exec: Executor
+
+  new create(exec: Executor) =>
     _exec = exec
 
   fun ref apply(timer: Timer, count: U64): Bool =>
@@ -19,7 +22,7 @@ class StepTimer is TimerNotify
   fun ref cancel(timer: Timer) =>
     None
 
-actor ProgramExecutor is Amplifier
+actor ProgramExecutor is (Amplifier & Executor)
   var _next: (Amplifier | None) = None
   var _sink: (Amplifier | None) = None
 
