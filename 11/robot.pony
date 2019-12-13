@@ -1,9 +1,9 @@
 use "collections"
 
 primitive Black
-  fun string(): String => "Black"
+  fun string(): String => "⬛️"
 primitive White
-  fun string(): String => "White"
+  fun string(): String => "⬜️"
 
 type Color is (Black | White)
 
@@ -22,7 +22,6 @@ type Direction is (North | East | South | West)
 
 primitive Init
 primitive Painting
-primitive Moving
 type RobotState is (Init | Painting)
 
 type HullPos is (I64, I64)
@@ -55,12 +54,18 @@ actor Robot
   let _visited: SetIs[HullPos]
   var _executor: (ProgramActor | None)
 
+  var _min_x: I64 = 0
+  var _max_x: I64 = 0
+  var _min_y: I64 = 0
+  var _max_y: I64 = 0
+
   new create(out: OutStream) =>
     _out = out
     _position = (0, 0)
     _state = Init
     _direction = North
     _hull = MapIs[HullPos, Color].create()
+    _hull.insert(_position, White)
     _visited = SetIs[HullPos].create()
     _executor = None
 
@@ -71,6 +76,7 @@ actor Robot
   be unsubscribe() =>
     let visited = _visited.size()
     _out.print("Visited ".add(visited.string()).add(" positions"))
+    try _show_visited()? end
 
   fun box _send_color() =>
     match _executor
@@ -129,3 +135,36 @@ actor Robot
     | South => (_position._1, _position._2 - 1)
     | West => (_position._1 + 1, _position._2)
     end
+
+    _min_x = _min_x.min(_position._1)
+    _max_x = _max_x.max(_position._1)
+
+    _min_y = _min_y.min(_position._2)
+    _max_y = _max_y.max(_position._2)
+
+  fun box _show_visited()? =>
+    let width = (_max_x - _min_x).abs().usize()
+    let height = (_max_y - _min_y).abs().usize()
+    let layer: Array[Array[Color]] = Array[Array[Color]].create()
+    for i in Range.create(0, height + 1) do
+      layer.push(Array[Color].init(Black, width + 1))
+    end
+
+    for point in _visited.values() do
+      let c = _hull.get_or_else(point, Black)
+      let x = point._1.neg().usize()
+      let y = point._2.neg().usize()
+      layer(y)?(x)? = c
+    end
+
+    let str = String.create()
+    for y in Range.create(0, height + 1) do
+      let row = layer(y)?
+      for x in Range.create(0, width + 1) do
+        str.concat(row(x)?.string().values())
+      end
+      str.push('\n')
+    end
+    str
+
+    _out.print(str.clone())

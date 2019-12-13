@@ -8,12 +8,12 @@ actor ProgramActor is Executor
   let _timer_wheel: Timers
   var _timer_handle: (Timer tag | None) = None
 
-  new create(wheel: Timers, memory: Array[I64] val, robot: Robot) =>
+  new create(memory: Array[I64] val, robot: Robot) =>
     _inbox = IOQueue.create()
     _robot = robot
     let send_fn = {(elt: I64)(robot) => robot.state_msg(elt)}
     _program = Program.create(_inbox, send_fn, memory)
-    _timer_wheel = wheel
+    _timer_wheel = Timers
 
   be input(i: I64) => _inbox.put(i)
 

@@ -1,5 +1,3 @@
-use "package:../07"
-use "time"
 use "files"
 use "itertools"
 
@@ -21,10 +19,9 @@ primitive FileUtils
 
 actor Main
   new create(env: Env) =>
-    let timer_wheel = Timers
     let code = FileUtils.load_file(env, "./11/input.txt", [])
 
     let robot = Robot.create(env.out)
-    let executor = ProgramActor.create(timer_wheel, code, robot)
+    let executor = ProgramActor.create(code, robot)
 
     executor.turn_on()
