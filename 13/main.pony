@@ -27,17 +27,17 @@ actor Main
 
     let arcade = Arcade.create(env.out)
     let executor = eleven.ProgramActor.create(consume code, arcade)
-    let term = ANSITerm(
-      Readline(recover JoystickHandler.create(executor) end, env.out),
-      env.input
-    )
+    // let term = ANSITerm(
+    //   Readline(recover JoystickHandler.create(arcade) end, env.out),
+    //   env.input
+    // )
 
-    let notify = object iso
-      let term : ANSITerm = term
-      fun ref apply(data: Array[U8] iso) => term(consume data)
-      fun ref dispose() => term.dispose()
-    end
+    // let notify = object iso
+    //   let term : ANSITerm = term
+    //   fun ref apply(data: Array[U8] iso) => term(consume data)
+    //   fun ref dispose() => term.dispose()
+    // end
 
     executor.turn_on()
-    term.prompt("> ")
-    env.input(consume notify)
+    // term.prompt("> ")
+    // env.input(consume notify)
