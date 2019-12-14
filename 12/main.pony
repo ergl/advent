@@ -4,6 +4,7 @@ use "collections"
 
 type Coord is (I64, I64, I64)
 type Velocity is (I64, I64, I64)
+type Dimension is (I64, I64, I64, I64, I64, I64, I64, I64)
 
 class Moon
   var pos_x: I64
@@ -43,6 +44,12 @@ class Moon
   fun energy(): U64 =>
     potential() * kinetic()
 
+  fun box position(): Coord =>
+    (pos_x, pos_y, pos_z)
+
+  fun box velocity(): Velocity =>
+    (velocity_x, velocity_y, velocity_z)
+
   fun string(): String =>
     recover
       let s = String.create()
@@ -75,12 +82,12 @@ primitive Utils
       (0, 0, 0)
     end
 
-  fun into_arr(env: Env, path: String, arr: Array[Moon] ref) =>
+  fun into_arr(env: Env, path: String, arr: Array[Moon val] ref) =>
     let caps = recover val FileCaps.>set(FileRead).>set(FileStat) end
     try
       with file = OpenFile(FilePath(env.root as AmbientAuth, path, caps)?) as File do
         Iter[String](file.lines())
-          .map_stateful[None]({(line)(arr) => arr.push(Moon.create(Utils.parse_coord(line)))})
+          .map_stateful[None]({(line)(arr) => arr.push(recover val Moon.create(Utils.parse_coord(line)) end)})
           .run()
         file.dispose()
       end
@@ -143,18 +150,90 @@ primitive Utils
     end
     total_energy
 
+  fun pos_idx_to_dimension(m: Moon, idx: USize): I64? =>
+    match idx
+    | 0 => m.pos_x
+    | 1 => m.pos_y
+    | 2 => m.pos_z
+    else error end
+
+  fun vel_idx_to_dimension(m: Moon, idx: USize): I64? =>
+    match idx
+    | 0 => m.velocity_x
+    | 1 => m.velocity_y
+    | 2 => m.velocity_z
+    else error end
+
+  fun into_dimension(arr: Array[Moon] ref, pos: USize): Dimension? =>
+    (pos_idx_to_dimension(arr(0)?, pos)?,
+     pos_idx_to_dimension(arr(1)?, pos)?,
+     pos_idx_to_dimension(arr(2)?, pos)?,
+     pos_idx_to_dimension(arr(3)?, pos)?,
+
+     vel_idx_to_dimension(arr(0)?, pos)?,
+     vel_idx_to_dimension(arr(1)?, pos)?,
+     vel_idx_to_dimension(arr(2)?, pos)?,
+     vel_idx_to_dimension(arr(3)?, pos)?)
+
+  fun cycle_for_dimension(arr: Array[Moon] ref, pos: USize): USize? =>
+    let matches = SetIs[Dimension]
+    matches.set(into_dimension(arr, pos)?)
+    var i: USize = 1
+    while i < USize.max_value() do
+      step(arr)
+      let state = into_dimension(arr, pos)?
+      if matches.contains(state) then
+        return i
+      end
+      matches.set(state)
+      i = i + 1
+    end
+    error
+
+   fun cycle(arr: Array[Moon] ref): USize? =>
+    let cycles = Array[USize].init(0, 3)
+    for i in Range.create(0, 3) do
+      cycles(i)? = cycle_for_dimension(arr, i)?
+    end
+
+    lcm(lcm(cycles(0)?, cycles(1)?), cycles(2)?)
+
+  fun lcm(a: USize, b: USize): USize =>
+    (a * b) / gcd(a, b)
+
+  fun gcd(a: USize, b: USize): USize =>
+    if (b == 0) then a
+    else gcd(b, a.mod(b)) end
+
+  fun deep_copy(arr: Array[Moon val] val): Array[Moon] iso^ =>
+    recover
+      let bare = Array[Moon].create(arr.size())
+      for moon in arr.values() do
+        bare.push(Moon.with_velocity(moon.position(), moon.velocity()))
+      end
+      bare
+    end
 
 actor Main
-  new create(env: Env) =>
-    let arr = Array[Moon].create(4)
-    Utils.into_arr(env, "./12/input.txt", arr)
-    for i in Range.create(0, 1001) do
-      if (i.mod(10) == 0) then
-        env.out.print("After ".add(i.string()).add(" steps:"))
-        for moon in arr.values() do
-          env.out.print(moon.string())
-        end
-        env.out.print(Utils.energy(arr).string())
-      end
-      Utils.step(arr)
+  fun part_one(arr: Array[Moon val] val): U64 =>
+    let arr_copy: Array[Moon] ref = Utils.deep_copy(arr)
+    for i in Range.create(0, 1000) do
+      Utils.step(arr_copy)
     end
+    Utils.energy(arr_copy)
+
+  fun part_two(arr: Array[Moon val] val): U64 =>
+    let arr_copy: Array[Moon] ref = Utils.deep_copy(arr)
+    try Utils.cycle(arr_copy)?.u64() else 0 end
+
+  new create(env: Env) =>
+    let arr = recover val
+      let tmp = Array[Moon val].create(4)
+      Utils.into_arr(env, "./12/input.txt", tmp)
+      tmp
+    end
+
+    let energy = part_one(arr)
+    env.out.print("One: ".add(energy.string()))
+    let cycle_steps = part_two(arr)
+    env.out.print("Two: ".add(cycle_steps.string()))
