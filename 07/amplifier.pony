@@ -8,6 +8,7 @@ interface tag Amplifier
 
 interface tag Executor
   be step()
+  be input(i: I64)
 
 class StepTimer is TimerNotify
   let _exec: Executor
@@ -42,6 +43,8 @@ actor ProgramExecutor is (Amplifier & Executor)
 
   be receive(i: I64) => _inbox.put(i)
   be receive_sink(i: I64) => None
+
+  be input(i: I64) => None
 
   be send_output(elt: I64) =>
     match _next
