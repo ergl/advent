@@ -1,3 +1,4 @@
+use "package:../07"
 use "collections"
 
 primitive Black
@@ -45,14 +46,14 @@ primitive ParseUtils
     | 1 => Right
     else error end
 
-actor Robot
+actor Robot is FSM
   let _out: OutStream
   var _position: HullPos
   var _direction: Direction
   var _state: RobotState
   let _hull: MapIs[HullPos, Color]
   let _visited: SetIs[HullPos]
-  var _executor: (ProgramActor | None)
+  var _executor: (Executor | None)
 
   var _min_x: I64 = 0
   var _max_x: I64 = 0
@@ -69,7 +70,7 @@ actor Robot
     _visited = SetIs[HullPos].create()
     _executor = None
 
-  be subscribe(exe: ProgramActor) =>
+  be subscribe(exe: Executor) =>
     _executor = exe
     _send_color()
 

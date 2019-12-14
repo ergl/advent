@@ -1,5 +1,11 @@
 use "files"
 use "itertools"
+use "package:../07"
+
+interface tag FSM
+  be state_msg(i: I64)
+  be subscribe(exe: Executor)
+  be unsubscribe()
 
 primitive FileUtils
   fun load_file(env: Env, path: String, default: Array[I64] val): Array[I64] val =>
