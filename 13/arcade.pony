@@ -19,7 +19,9 @@ type Tile is (Empty | Wall | Block | Paddle | Ball)
 primitive OutputX
 primitive OutputY
 primitive OutputTile
-type ArcadeOutputState is (OutputX | OutputY | OutputTile)
+primitive ScoreY
+primitive OutputScore
+type ArcadeOutputState is (OutputX | OutputY | OutputTile | ScoreY | OutputScore)
 
 type WindowPos is (U64, U64)
 
@@ -45,6 +47,8 @@ actor Arcade is eleven.FSM
   var _max_x: U64 = 0
   var _max_y: U64 = 0
 
+  var _score: I64 = 0
+
   new create(out: OutStream) =>
     _out = out
     _state = OutputX
@@ -67,19 +71,26 @@ actor Arcade is eleven.FSM
   be state_msg(elt: I64) =>
     match _state
     | OutputX =>
-      _tmp_x = elt.u64()
-      _max_x = _max_x.max(_tmp_x)
-      _state = OutputY
+      let tmp = elt.u64()
+      match tmp
+      | -1 => _state = ScoreY
+      else
+        _tmp_x = tmp
+        _max_x = _max_x.max(_tmp_x)
+        _state = OutputY
+      end
     | OutputY =>
       _tmp_y = elt.u64()
       _max_y = _max_y.max(_tmp_y)
       _state = OutputTile
+    | ScoreY =>
+        _state = OutputScore
+    | OutputScore =>
+      _score = elt
+      _state = OutputX
     | OutputTile =>
       try
-        _window.insert(
-          (_tmp_x, _tmp_y),
-          ParseUtils.tile_from_int(elt)?
-        )
+        _window.insert((_tmp_x, _tmp_y), ParseUtils.tile_from_int(elt)?)
         _redraw()?
       end
       _state = OutputX
@@ -107,8 +118,8 @@ actor Arcade is eleven.FSM
       end
       str.push('\n')
     end
-    str
+    str.push('\n')
+    str.append("Score: ".add(_score.string()))
 
-    _out.flush()
     _out.print(str.clone())
 
