@@ -82,3 +82,22 @@ actor Main
     ParseUtils.parse_file(env, "./14/input.txt", book)
     let total_ore = walk_branch("FUEL", 1, book, Remainders)
     env.out.print("Need ".add(total_ore.string()).add(" pieces of ore"))
+
+    let remainders = Remainders
+    let ore_cap: U64 = 1_000_000_000_000
+    var lower_fuel_cap: U64 = 0
+    var upper_fuel_cap = U64.max_value()
+    var mid: U64 = 0
+    while lower_fuel_cap <= upper_fuel_cap do
+      mid = (upper_fuel_cap + lower_fuel_cap) / 2
+      let used_ore = walk_branch("FUEL", mid, book, remainders.>clear())
+      if used_ore < ore_cap then
+        lower_fuel_cap = mid + 1
+      elseif used_ore > ore_cap then
+        upper_fuel_cap = mid -1
+      else
+        break
+      end
+    end
+
+    env.out.print("Could produce ".add(mid.string()).add(" units of fuel"))
