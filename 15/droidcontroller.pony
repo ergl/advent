@@ -102,7 +102,7 @@ class val RoomPosition is (Comparable[RoomPosition val] & Hashable)
     let x_hash = x.hash()
     let y_hash = y.hash()
     let tmp = y_hash + 0x9e3779b9 + (x_hash << 6) + (x_hash >> 2)
-    x_hash or tmp
+    x_hash xor tmp
 
   fun string(): String =>
     "(".add(x.string()).add(",").add(y.string()).add(")")
