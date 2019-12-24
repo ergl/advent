@@ -112,6 +112,7 @@ actor DroidController is eleven.FSM
   embed _origin: RoomPosition = RoomPosition.create(0, 0)
   embed _graph: Graph[RoomPosition, HashEq[RoomPosition]]
   var _state: DroidState = ExploreNeighbours
+  var _oxygen_point: RoomPosition = _origin // Dummy, don't do optional
 
   var _executor: (Executor | None) = None
   var _current_position: RoomPosition
@@ -160,7 +161,7 @@ actor DroidController is eleven.FSM
       let path = _graph.path(_current_position, next_candidate)
       if path.size() == 0 then
         Debug.err("WARNING: No path from ".add(_current_position.string()).add(" to ").add(next_candidate.string()))
-        return
+        _quit()
       end
 
       var path_edge = _current_position
@@ -171,10 +172,22 @@ actor DroidController is eleven.FSM
           path_edge = node
         else
           Debug.err("WARNING: Wrong path contains non-neighbor from ".add(path_edge.string()).add(" to ").add(node.string()))
+          _quit()
         end
       end
     else
-      Debug.err("WARNING: Ran out of candidates!, while at ".add(_current_position.string()))
+      _part_two()
+      _quit()
+    end
+
+  fun ref _part_two() =>
+    match _graph.farthest_point(_oxygen_point)
+    | (let point: RoomPosition, let distance: USize) =>
+      _out.print("Point farthest apart from oxygen is "
+                  .add(point.string())
+                  .add(", ")
+                  .add(distance.string())
+                  .add(" steps away"))
     end
 
   fun ref _update_neighbor_info() =>
@@ -197,8 +210,6 @@ actor DroidController is eleven.FSM
       var next_move = _remaining_moves.shift()?
       _last_move = next_move
       _send_move(next_move)
-    else
-      Debug.err("WARNING: Out of moves, and forgot to check!")
     end
 
   fun _send_move(m: Move) =>
@@ -207,46 +218,52 @@ actor DroidController is eleven.FSM
       exe.input(_Utils.move_to_int(m))
     end
 
+  fun ref _handle_explore(response: MoveStatus) =>
+    match response
+    | Wall => _move_to_neighbor_or_candidate()
+    else
+      _update_neighbor_info()
+      _send_move(_Utils.opposite_move(_last_move))
+      _state = ResetToCandidate
+
+      if response is OxygenFound then
+        let position = _current_position.apply(_last_move)
+        let path_size = _graph.path(_origin, position).size()
+        _oxygen_point = position
+        _out.print("Found oxygen at "
+                    .add(position.string()
+                    .add(", ")
+                    .add(path_size.string()).add(" steps from origin")))
+      end
+    end
+
+  fun ref _move_to_neighbor_or_candidate() =>
+    _state = if _remaining_moves.size() != 0 then
+      ExploreNeighbours
+    else
+      _calculate_candidate_path()
+      MovingToCandidate
+    end
+    _send_next_move()
+
+  fun ref _move_to_candidate_or_neighbor() =>
+    _current_position = _current_position.apply(_last_move)
+    _state = if _remaining_moves.size() != 0 then
+      MovingToCandidate
+    else
+      _calculate_neighbor_moves()
+      ExploreNeighbours
+    end
+    _send_next_move()
+
   be state_msg(msg: I64) =>
     match _state
-    | ExploreNeighbours =>
-      match _Utils.int_to_status(msg)
-      | Ok =>
-        _update_neighbor_info()
-        _send_move(_Utils.opposite_move(_last_move))
-        _state = ResetToCandidate
-      | Wall =>
-        if _remaining_moves.size() != 0 then
-          _send_next_move()
-          _state = ExploreNeighbours
-        else
-          _calculate_candidate_path()
-          _send_next_move()
-          _state = MovingToCandidate
-        end
-      | OxygenFound =>
-        _update_neighbor_info()
-        let oxygen_pos = _current_position.apply(_last_move)
-        let path_size = _graph.path(_origin, oxygen_pos).size()
-        _out.print("Found oxygen at ".add(oxygen_pos.string().add(", ").add(path_size.string()).add(" steps from origin")))
-      end
-    | ResetToCandidate =>
-      if _remaining_moves.size() != 0 then
-        _send_next_move()
-        _state = ExploreNeighbours
-      else
-        _calculate_candidate_path()
-        _send_next_move()
-        _state = MovingToCandidate
-      end
-    | MovingToCandidate =>
-      _current_position = _current_position.apply(_last_move)
-      if _remaining_moves.size() != 0 then
-        _send_next_move()
-        _state = MovingToCandidate
-      else
-        _calculate_neighbor_moves()
-        _send_next_move()
-        _state = ExploreNeighbours
-      end
+    | ExploreNeighbours => _handle_explore(_Utils.int_to_status(msg))
+    | ResetToCandidate => _move_to_neighbor_or_candidate()
+    | MovingToCandidate => _move_to_candidate_or_neighbor()
+    end
+
+  fun _quit() =>
+    match _executor
+    | let e: Executor => e.turn_off()
     end

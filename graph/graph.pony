@@ -32,6 +32,21 @@ class Graph[A: Comparable[A] val, H: HashFunction[A] val]
     end
     current
 
+  fun ref farthest_point(from: A): ((A, USize) | None) =>
+    var path_size: USize = 0
+    var point: (A | None) = None
+    for vertex in _backing_store.keys() do
+      if vertex.ne(from) then
+        let size = path(from, vertex).size()
+        if size > path_size then
+          path_size = size
+          point = vertex
+        end
+      end
+    end
+
+    try (point as A, path_size) end
+
   fun ref path(from: A, to: A): Array[A] val =>
     _heap.clear()
     _in_heap.clear()

@@ -7,6 +7,8 @@ interface tag Amplifier
   be add_sink(amp: Amplifier)
 
 interface tag Executor
+  be turn_on()
+  be turn_off()
   be step()
   be input(i: I64)
 
@@ -69,3 +71,6 @@ actor ProgramExecutor is (Amplifier & Executor)
       | let t: Timer tag => _timer_wheel.cancel(t)
       end
     end
+
+  be turn_off() =>
+    try _timer_wheel.cancel(_timer_handle as Timer tag) end

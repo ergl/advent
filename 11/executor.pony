@@ -34,3 +34,7 @@ actor ProgramActor is Executor
         _timer_wheel.cancel(t)
       end
     end
+
+  be turn_off() =>
+    _fsm.unsubscribe()
+    try _timer_wheel.cancel(_timer_handle as Timer tag) end
