@@ -1,5 +1,4 @@
 use "files"
-use "itertools"
 use "collections"
 
 primitive Utils
@@ -20,41 +19,29 @@ primitive Utils
 
     file.dispose()
 
-  fun repeat_pattern(mult: USize, pattern: Array[I8] val): Array[I8] iso^ =>
-    if mult == 1 then
-      return recover pattern.clone() end
-    end
-
-    let arr = recover Array[I8].create(pattern.size() * mult) end
-    for element in pattern.values() do
-      var idx: USize = 0
-      while idx < mult do
-        arr.push(element)
-        idx = idx + 1
-      end
-    end
-    consume arr
+  fun pattern_index(size: USize, inner: USize, outer: USize): USize =>
+    ((inner + 1) / (outer + 1)).mod(size)
 
   fun apply_phase(phase: U8, pattern: Array[I8] val, input: Array[U8]): Array[U8]? =>
     let buffer = Array[U8].init(0, input.size())
-    for idx in Range.create(0, input.size()) do
-      let pos_pattern = repeat_pattern(idx + 1, pattern)
-      let pattern_iter = Iter[I8]((consume pos_pattern).values()).cycle()
-      pattern_iter.skip(1) // ignore first
-
+    let pattern_size = pattern.size()
+    for i in Range.create(0, input.size()) do
       var acc: I64 = 0
-      for element in input.values() do
-        acc = acc + (element.i64() * pattern_iter.next()?.i64())
+      for j in Range.create(0, input.size()) do
+        let element = input(j)?
+        let idx = pattern_index(pattern_size, j, i)
+        let mult = pattern(idx)?
+        acc = acc + (element.i64() * mult.i64())
       end
       buffer(idx)? = acc.abs().mod(10).u8()
     end
     buffer
 
-  fun do_fft(phases: U8, init_pattern: Array[I8] val, init_buffer: Array[U8] iso): Array[U8]? =>
+  fun do_fft(phases: U8, pattern: Array[I8] val, init_buffer: Array[U8] iso): Array[U8]? =>
     var buffer: Array[U8] ref = consume init_buffer
     var phase: U8 = 1
     while phase <= phases do
-      buffer = apply_phase(phases, init_pattern, buffer)?
+      buffer = apply_phase(phases, pattern, buffer)?
       phase = phase + 1
     end
     buffer
@@ -80,6 +67,7 @@ actor Main
         Utils.process_file(env, "./16/input.txt", tmp)?
         tmp
       end
+
       let result = Utils.do_fft(100, pattern, consume buffer)?
       env.out.print(Utils.format[U8](result where limit = 8))
     end
