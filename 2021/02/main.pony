@@ -30,6 +30,7 @@ actor Main
       do
         let commands = Iter[String](file.lines()).map[Command]({(elt)? => Parse.line(elt)?}).collect(Array[Command])
         solve_part_1(env.out, commands)
+        solve_part_2(env.out, commands)
       end
     else
       env.err.print("Error")
@@ -47,6 +48,25 @@ actor Main
     end
     out.print(
       "Part 1. Final position: " +
+      x.string() + ", " + y.string() +
+      ". Total: " + (x*y).string()
+    )
+
+  fun tag solve_part_2(out: OutStream, cmds: Array[Command]) =>
+    var x: I64 = 0
+    var y: I64 = 0
+    var aim: I64 = 0
+    for cmd in cmds.values() do
+      match cmd
+      | (Forward, let u: U64) =>
+        x = x + u.i64()
+        y = y + (aim * u.i64())
+      | (Up, let u: U64) => aim = aim - u.i64()
+      | (Down, let u: U64) => aim = aim + u.i64()
+      end
+    end
+    out.print(
+      "Part 2. Final position: " +
       x.string() + ", " + y.string() +
       ". Total: " + (x*y).string()
     )
