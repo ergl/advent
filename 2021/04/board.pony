@@ -6,8 +6,8 @@ class Board
   let _b: Array[Array[U32]] = _b.create()
 
   let _crossed: SetIs[U32] = _crossed.create()
-  let _rows_crossed: Array[U32] = Array[U32].init(0, 5)
-  let _columns_crossed: Array[U32] = Array[U32].init(0, 5)
+  var _rows_crossed: Array[U32] = Array[U32].init(0, 5)
+  var _columns_crossed: Array[U32] = Array[U32].init(0, 5)
 
   new create() => None
 
@@ -55,6 +55,11 @@ class Board
       end
     end
     sum
+
+  fun ref reset_crossed() =>
+    _crossed.clear()
+    _rows_crossed = Array[U32].init(0, 5)
+    _columns_crossed = Array[U32].init(0, 5)
 
   fun string(): String iso^ =>
     let str = recover String end
