@@ -6,7 +6,8 @@ primitive Utils
   fun insert_path_points(
     start: (U32, U32),
     ends: (U32, U32),
-    index: MapIs[(U32, U32), U32])
+    index: MapIs[(U32, U32), U32],
+    include_diagonal: Bool = false)
   =>
     (let x0, let y0) = start
     (let x1, let y1) = ends
@@ -26,6 +27,33 @@ primitive Utils
         let point = (curr_x, y0)
         index.insert(point, 1 + index.get_or_else(point, 0))
         curr_x = curr_x + 1
+      end
+    elseif
+      include_diagonal and
+      ((y1.i32() - y0.i32()).abs() ==
+      (x1.i32() - x0.i32()).abs())
+    then
+      // 45 degrees
+      (
+        (var start_x, var start_y),
+        (let end_x, let end_y)
+      ) =
+        if x0 < x1 then
+          ((x0, y0), (x1, y1))
+        else
+          ((x1, y1), (x0, y0))
+        end
+
+      while start_x <= end_x do
+        let point = (start_x, start_y)
+        index.insert(point, 1 + index.get_or_else(point, 0))
+        start_x = start_x + 1
+        start_y =
+          if end_y > start_y then // Going up
+            start_y + 1
+          else
+            start_y - 1
+          end
       end
     end
 
@@ -53,27 +81,48 @@ actor Main
               )
               (starts_at, ends_at)
             })
-            // Map paths into an index
-            .fold[MapIs[(U32, U32), U32]](
-              MapIs[(U32, U32), U32],
-              {(acc, init_and_end) =>
-                Utils.insert_path_points(
-                  init_and_end._1,
-                  init_and_end._2,
-                  acc
-                )
+            .collect(Array[((U32, U32), (U32,U32))])
+
+          let silver = solve_paths(board, {(acc, init_and_end) =>
+            Utils.insert_path_points(
+                init_and_end._1,
+                init_and_end._2,
                 acc
-              }
             )
-          var overlaps: U32 = 0
-          for frequencies in board.values() do
-            if frequencies >= 2 then
-              overlaps = overlaps + 1
-            end
-          end
-          env.out.print("Size of board: " + board.size().string())
-          env.out.print("Points with 2 or more overlapping lines: " + overlaps.string())
+            acc
+          })
+          let gold = solve_paths(board, {(acc, init_and_end) =>
+            Utils.insert_path_points(
+                init_and_end._1,
+                init_and_end._2,
+                acc,
+                true
+            )
+            acc
+          })
+          env.out.print("Silver: " + silver.string())
+          env.out.print("Gold: " + gold.string())
       end
     else
       env.err.print("Error")
     end
+
+  fun tag solve_paths(
+    coordinates: Array[((U32, U32), (U32,U32))] box,
+    fold_fun: {(MapIs[(U32, U32), U32], ((U32, U32), (U32, U32))): MapIs[(U32, U32), U32]})
+    : U32
+  =>
+    let index =
+      Iter[((U32, U32), (U32,U32))](coordinates.values())
+      .fold[MapIs[(U32, U32), U32]](
+        MapIs[(U32, U32), U32],
+        fold_fun
+      )
+
+    var overlaps: U32 = 0
+    for frequencies in index.values() do
+      if frequencies >= 2 then
+        overlaps = overlaps + 1
+      end
+    end
+    overlaps
