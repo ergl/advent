@@ -58,6 +58,12 @@ actor Main
 
         let silver = Solver.create(env.out, recover init_state.clone() end)
         silver.run({(current, target) => (current.i64() - target).abs()})
+
+        let gold = Solver.create(env.out, recover init_state.clone() end)
+        gold.run({(current, target) =>
+          let diff =  (current.i64() - target).abs()
+          (diff * (diff + 1)) / 2
+        })
       end
     else
       env.err.print("Error")
