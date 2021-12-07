@@ -2,60 +2,32 @@ use "files"
 use "collections"
 use "itertools"
 
-actor Collector
+actor Nursery
   let _out: OutStream
-  let _fish: SetIs[Lantern] = _fish.create()
-  var _created: U64 = 0
-
-  new create(out: OutStream) =>
-    _out = out
-
-  be spawned(fish: Lantern) =>
-    _created = _created + 1
-    _fish.set(fish)
-
-  be done(fish: Lantern) =>
-    _fish.unset(fish)
-    if _fish.size() == 0 then
-      _out.print("Done simulating. There are " + _created.string() + " fish.")
-    end
-
-actor Lantern
-  var _simulation_step: U64
-  var _day: U64
-  let _collector: Collector
+  let _fish: Array[U64]
+  var _simulation_day: U64
 
   new create(
-    simulation_days: U64,
-    fish_day: U64,
-    collector: Collector)
+    out: OutStream,
+    simulation_day: U64,
+    init_fish: Array[U64] iso)
   =>
-    _simulation_step = simulation_days
-    _day = fish_day
-    _collector = collector
-    _notify_collector()
+    _out = out
+    _fish = consume init_fish
+    _simulation_day = simulation_day
 
-  be _notify_collector() =>
-    let self: Lantern tag = this
-    _collector.spawned(self)
-    step()
-
-  be step() =>
-    if _simulation_step == 0 then
-      _collector.done(this)
-      return
+  be run() =>
+    try
+      for i in Range[U64](0, _simulation_day) do
+        let f = _fish.shift()?
+        _fish.push(f)
+        _fish(6)? = _fish(6)? + f
+      end
     end
 
-    _simulation_step = _simulation_step - 1
-    if _day == 0 then
-      _day = 6
-      // New lanternfish are created with 8 days
-      Lantern.create(_simulation_step, 8, _collector)
-    else
-      _day = _day - 1
-    end
-
-    step()
+    let total = Iter[U64](_fish.values())
+      .fold[U64](0, {(acc, elt) => acc + elt})
+    _out.print("Done simulating. There are " + total.string() + " fish.")
 
 actor Main
   var path: String = "./input.txt"
@@ -64,15 +36,28 @@ actor Main
     try
       with file = OpenFile(FilePath(env.root as AmbientAuth, path)) as File
       do
-        let str: Array[String] = file.read_string(file.size()).split(",")
-        let init_state =
-          Iter[String](str.values())
-            .map[U64]({(str)? => str.read_int[U64](where base = 10)?._1})
-            .collect(Array[U64].create(str.size()))
-        let c = Collector.create(env.out)
-        for l in init_state.values() do
-          Lantern.create(80, l, c)
-        end
+        let str = file.read_string(file.size()).split(",")
+        let str_size = str.size()
+        let init_state = recover val
+            Iter[String]((consume str).values())
+              .map[USize]({(string)? =>
+                (let days, _) = string.read_int[USize](where base = 10)?
+                days
+              })
+              .fold_partial[Array[U64]](
+                Array[U64].init(0, 9),
+                {(acc, elt)? =>
+                  acc(elt)? = acc(elt)? + 1
+                  acc
+                }
+              )?
+            end
+        // Silver
+        let silver = Nursery.create(env.out, 80, recover init_state.clone() end)
+        silver.run()
+        // Gold
+        let gold = Nursery.create(env.out, 256, recover init_state.clone() end)
+        gold.run()
       end
     else
       env.err.print("Error")
