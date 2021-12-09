@@ -97,13 +97,36 @@ primitive ParseLine
       end
     String.from_iso_array(consume arr)
 
+class Signal is Comparable[Signal]
+  let _s: String ref
+
+  new create(from: String) =>
+    let s_iso = from.clone()
+    _s = consume ref s_iso
+
+  fun lt(that: box->Signal): Bool =>
+    if _s.size() == that._s.size() then
+      return _s < that._s
+    else
+      return _s.size() < that._s.size()
+    end
+
+  fun size(): USize =>
+    _s.size()
+
+  fun string(): String iso^ =>
+    _s.clone()
+
 class Entry
-  let _input_signals: Array[String]
+  let _input_signals: Array[Signal]
   let _output_signals: Array[String]
 
   new create(input: Array[String] iso, output: Array[String] iso) =>
-    _input_signals = consume input
     _output_signals = consume output
+    let input_tmp = Iter[String]((consume input).values())
+      .map[Signal]({(s) => Signal.create(s)})
+      .collect(Array[Signal])
+    _input_signals = Sort[Array[Signal], Signal](input_tmp)
 
   fun unique_output_signals(): USize =>
     var count: USize = 0
@@ -292,12 +315,13 @@ class Entry
     end
 
   fun tag _get_with_size(
-    arr: Array[String] box,
+    arr: Array[Signal] box,
     size: USize)
     : Array[String] box
   =>
-    Iter[String](arr.values())
+    Iter[Signal box](arr.values())
       .filter({(signal) => signal.size() == size})
+      .map[String]({(s) => s.string()})
       .collect(Array[String])
 
   fun string(): String iso^ =>
@@ -306,7 +330,7 @@ class Entry
       String.create(init_size)
     end
     for s in _input_signals.values() do
-      str.>append(s).push(' ')
+      str.>append(s.string()).push(' ')
     end
     str.append("| ")
     for s in _output_signals.values() do
