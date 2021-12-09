@@ -1,2 +1,2 @@
 all:
-	corral run -- ponyc -d -b segment . && ./segment
+	corral run -- ponyc -b segment . && ./segment

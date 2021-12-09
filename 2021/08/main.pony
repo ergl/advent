@@ -97,12 +97,15 @@ primitive ParseLine
       end
     String.from_iso_array(consume arr)
 
-class Signal is Comparable[Signal]
+class Signal is (Comparable[Signal] & Equatable[Signal])
   let _s: String ref
 
   new create(from: String) =>
     let s_iso = from.clone()
     _s = consume ref s_iso
+
+  fun eq(that: box->Signal): Bool =>
+    _s == that._s
 
   fun lt(that: box->Signal): Bool =>
     if _s.size() == that._s.size() then
@@ -146,34 +149,56 @@ class Entry
     end
     ArrayUtils.to_num(output)
 
+  // 2, 3 and 5 always fail
   fun _build_dictionary(): SignalDictionary iso^ ? =>
     let dictionary = recover SignalDictionary end
 
-    let one = _get_with_size(_input_signals, 2)(0)?
-    let seven = _get_with_size(_input_signals, 3)(0)?
-    let three = _get_three()?
-    let four = _get_with_size(_input_signals, 4)(0)?
-    let eight = _get_with_size(_input_signals, 7)(0)?
+    // Well known positions
+    let one: String = _input_signals(0)?.string()
+    dictionary(one) = 1
+
+    let seven: String = _input_signals(1)?.string()
+    dictionary(seven) = 7
+
+    let four: String = _input_signals(2)?.string()
+    dictionary(four) = 4
+
+    let eight: String = _input_signals(9)?.string()
+    dictionary(eight) = 8
 
     // Only one difference
     let upper_segment = StringUtils.different_bytes(one, seven)(0)?
-    (let nine, let lower_segment) = _get_nine(four, upper_segment)?
+    (let nine, let lower_segment, let nine_idx) = _get_nine(four, upper_segment)?
+    dictionary(nine) = 9
+
     (
       let zero, let middle_segment,
       let six, let upper_right_segment
-    ) = _get_zero_and_six(one, eight, nine, upper_segment, lower_segment)?
-    (let two, let five) = _get_two_and_five(three, upper_right_segment)?
-
+    ) = _get_zero_and_six(one, eight, nine_idx, upper_segment, lower_segment)?
     dictionary(zero) = 0
-    dictionary(one) = 1
-    dictionary(two) = 2
-    dictionary(three) = 3
-    dictionary(four) = 4
-    dictionary(five) = 5
     dictionary(six) = 6
-    dictionary(seven) = 7
-    dictionary(eight) = 8
-    dictionary(nine) = 9
+
+    let lower_right_segment =
+      StringUtils.without_byte(one, upper_right_segment)(0)?
+
+    // If we add up, middle and lower segment to one, we get 3
+    let three_arr = recover Array[U8].create(5) end
+    for b in one.values() do
+      three_arr.push(b)
+    end
+    three_arr.push(upper_segment)
+    three_arr.push(middle_segment)
+    three_arr.push(lower_segment)
+    let three_arr_val = recover val Sort[Array[U8], U8](consume three_arr) end
+    let three = String.from_array(three_arr_val)
+    dictionary(three) = 3
+
+    let three_idx = _input_signals.find(Signal(three)
+      where predicate = {(l, r) => l == r})?
+
+    (let two, let five) = _get_two_and_five(three_idx, lower_right_segment)?
+    dictionary(two) = 2
+    dictionary(five) = 5
 
     Debug("Zero is " + zero)
     Debug("One is " + one)
@@ -194,6 +219,10 @@ class Entry
       recover val String.from_utf32(upper_right_segment.u32()) end
     )
     Debug(
+      "Lower right segment is " +
+      recover val String.from_utf32(lower_right_segment.u32()) end
+    )
+    Debug(
       "Middle segment is " +
       recover val String.from_utf32(middle_segment.u32()) end
     )
@@ -204,51 +233,31 @@ class Entry
 
     consume dictionary
 
-  fun box _get_three(): String ? =>
-    let candidates = _get_with_size(_input_signals, 5)
-    // Only three numbers: 2, 3 and 5
-    let c1 = candidates(0)?
-    let c2 = candidates(1)?
-    let c3 = candidates(2)?
+  fun box _get_nine(four: String, upper_segment_byte: U8): (String, U8, USize) ? =>
+    let c1: String = _input_signals(6)?.string()
+    let c2: String = _input_signals(7)?.string()
+    let c3: String = _input_signals(8)?.string()
 
-    if
-      (StringUtils.hamming(c1, c2)? == 1) and
-      (StringUtils.hamming(c1, c3)? == 1)
-    then
-      return c1
-    elseif
-      (StringUtils.hamming(c2, c1)? == 1) and
-      (StringUtils.hamming(c2, c3)? == 1)
-    then
-      return c2
-    else
-      return c3
-    end
-
-  fun box _get_nine(four: String, upper_segment_byte: U8): (String, U8) ? =>
-    let candidates = _get_with_size(_input_signals, 6)
-    let c1 = candidates(0)?
     let c1_cut = StringUtils.without_byte(c1, upper_segment_byte)
-    let c2 = candidates(1)?
     let c2_cut = StringUtils.without_byte(c2, upper_segment_byte)
-    let c3 = candidates(2)?
     let c3_cut = StringUtils.without_byte(c3, upper_segment_byte)
 
     let c1_diff = StringUtils.different_bytes(c1_cut, four)
     let c2_diff = StringUtils.different_bytes(c2_cut, four)
     let c3_diff = StringUtils.different_bytes(c3_cut, four)
+
     if c1_diff.size() == 1 then
-      return (c1, c1_diff(0)?)
+      return (c1, c1_diff(0)?, 6)
     elseif c2_diff.size() == 1 then
-      return (c2, c2_diff(0)?)
+      return (c2, c2_diff(0)?, 7)
     else
-      return (c3, c3_diff(0)?)
+      return (c3, c3_diff(0)?, 8)
     end
 
   fun box _get_zero_and_six(
     one: String,
     eight: String,
-    nine: String,
+    nine_idx: USize,
     upper_segment_byte: U8,
     lower_segment_byte: U8)
     : (String, U8, String, U8)
@@ -256,26 +265,27 @@ class Entry
   =>
     let one_array = one.array()
 
-    // Zero or Six
-    let candidates =
-      Iter[String](_get_with_size(_input_signals, 6).values())
-        .filter({(elt) => elt != nine})
-        .collect(Array[String])
-
     let eight_cut =
       StringUtils.without_byte(
         StringUtils.without_byte(eight, upper_segment_byte),
         lower_segment_byte
       )
 
-    let c1 = candidates(0)?
+    (let c1: String, let c2: String) =
+      if nine_idx == 6 then
+        (_input_signals(7)?.string(), _input_signals(8)?.string())
+      elseif nine_idx == 7 then
+        (_input_signals(6)?.string(), _input_signals(8)?.string())
+      else
+        (_input_signals(6)?.string(), _input_signals(7)?.string())
+      end
+
     let c1_cut =
       StringUtils.without_byte(
         StringUtils.without_byte(c1, upper_segment_byte),
         lower_segment_byte
       )
 
-    let c2 = candidates(1)?
     let c2_cut =
       StringUtils.without_byte(
           StringUtils.without_byte(c2, upper_segment_byte),
@@ -294,35 +304,28 @@ class Entry
     end
 
   fun box _get_two_and_five(
-    three: String,
-    upper_right_segment_byte: U8)
+    three_idx: USize,
+    lower_right_segment: U8)
     : (String, String)
     ?
   =>
-    // Two or Five
-    let candidates =
-      Iter[String](_get_with_size(_input_signals, 5).values())
-        .filter({(elt) => elt != three})
-        .collect(Array[String])
+    // 2 or 5
+    (let c1: String, let c2: String) =
+      if three_idx == 3 then
+        (_input_signals(4)?.string(), _input_signals(5)?.string())
+      elseif three_idx == 4 then
+        (_input_signals(3)?.string(), _input_signals(5)?.string())
+      else
+        (_input_signals(3)?.string(), _input_signals(4)?.string())
+      end
 
-    let c1 = candidates(0)?
-    let c2 = candidates(1)?
-
-    if c1.array().contains(upper_right_segment_byte, {(l, r) => l == r}) then
-      return (c1, c2)
-    else
+    // 5 has the lower right segemnt lit, two doesn't
+    if c1.array().contains(lower_right_segment, {(l, r) => l == r}) then
+      // c1 is five
       return (c2, c1)
+    else
+      return (c1, c2)
     end
-
-  fun tag _get_with_size(
-    arr: Array[Signal] box,
-    size: USize)
-    : Array[String] box
-  =>
-    Iter[Signal box](arr.values())
-      .filter({(signal) => signal.size() == size})
-      .map[String]({(s) => s.string()})
-      .collect(Array[String])
 
   fun string(): String iso^ =>
     let init_size = _input_signals.size() + _output_signals.size() + 1
@@ -340,7 +343,7 @@ class Entry
     consume str
 
 actor Main
-  var path: String = "./input_sample.txt"
+  var path: String = "./input.txt"
 
   new create(env: Env) =>
     try
