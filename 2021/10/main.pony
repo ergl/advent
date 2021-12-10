@@ -4,8 +4,7 @@ use "collections"
 primitive Scores
   fun apply(): MapIs[U8, U64] val =>
     let m = recover MapIs[U8, U64].create() end
-    let sc = [
-      as (U8, U64):
+    let sc: Array[(U8, U64)] = [
       ('(', 3)
       ('[', 57)
       ('{', 1197)
@@ -18,8 +17,7 @@ primitive Scores
 
   fun autocomple_score(): MapIs[U8, U64] val =>
     let m = recover MapIs[U8, U64].create() end
-    let sc = [
-      as (U8, U64):
+    let sc: Array[(U8, U64)] = [
       (')', 1)
       (']', 2)
       ('}', 3)
@@ -31,10 +29,9 @@ primitive Scores
     consume val m
 
 primitive Utils
-  fun matching(): MapIs[U8, U8] val =>
+  fun match_closing(): MapIs[U8, U8] val =>
     let m = recover MapIs[U8, U8].create() end
-    let sc = [
-      as (U8, U8):
+    let sc: Array[(U8, U8)] = [
       (')', '(')
       (']', '[')
       ('}', '{')
@@ -43,12 +40,11 @@ primitive Utils
     for (open, close) in sc.values() do
       m.insert(open, close)
     end
-    consume val m
+    consume m
 
   fun match_opener(): MapIs[U8, U8] val =>
     let m = recover MapIs[U8, U8].create() end
-    let sc = [
-      as (U8, U8):
+    let sc: Array[(U8, U8)] = [
       ('(', ')')
       ('[', ']')
       ('{', '}')
@@ -57,21 +53,15 @@ primitive Utils
     for (open, close) in sc.values() do
       m.insert(open, close)
     end
-    consume val m
+    consume m
 
 primitive SyntaxChecker
-  fun _matching_char(ch: U8): U8 =>
-    Utils.matching().get_or_else(ch, ch)
-
-  fun _error_score(ch: U8, stack: Array[U8]): U64 =>
-    try
-      if stack.shift()? != ch then
-        return Scores().get_or_else(ch, 0)
-      end
-      0
-    else
-      0
+  fun _error_score(ch: U8, next_char: U8): U64 =>
+    if next_char != ch then
+      return Scores().get_or_else(ch, 0)
     end
+
+    0
 
   fun error_score(line: String): U64 =>
     let stack = Array[U8]
@@ -85,10 +75,16 @@ primitive SyntaxChecker
       | let c: U8 if (c == ')') or (c == ']') or
                      (c == '}') or (c == '>')
         =>
-          let delta = _error_score(_matching_char(c), stack)
+          let delta =
+            try
+              _error_score(Utils.match_closing()(ch)?, stack.shift()?)
+            else
+              0
+            end
           if delta > 0 then return delta end
       end
     end
+
     0
 
   fun autocomplete(line: String): (String, U64) =>
