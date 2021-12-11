@@ -51,13 +51,20 @@ actor Main
     end
 
   fun tag solve(out: OutStream, steps: USize, board: Board) =>
+    let check_scratchpad = Array[(I64, I64)].create(board.size() / 2)
+    let deltas = recover val
+      [as (I64, I64):
+        (0, -1); (1, -1); (1, 0); (1, 1); (0, 1); (-1, 1); (-1, 0); (-1, -1)
+      ]
+    end
+
     var acc: USize = 0
     var sync_step: (USize | None) = None
 
     Debug("Before any steps:" + "\n" + PrintBoard(board))
     var current_step: USize = 0
     while true do
-      (let delta, let synchronized) = step(board)
+      (let delta, let synchronized) = step(board, deltas, check_scratchpad.>clear())
       if synchronized and (sync_step is None) then
         sync_step = (current_step + 1)
         if current_step >= steps then
@@ -85,25 +92,24 @@ actor Main
         out.print("Gold. First synchronized on step " + s.string())
     end
 
-  fun tag step(board: Board): (USize, Bool) =>
-    let deltas = [as (I64, I64):
-      (0, -1); (1, -1); (1, 0); (1, 1); (0, 1); (-1, 1); (-1, 0); (-1, -1)
-    ]
+  fun tag step(
+    board: Board,
+    deltas: Array[(I64, I64)] val,
+    to_check: Array[(I64, I64)])
+    : (USize, Bool)
+  =>
 
     var glows: USize = 0
-    let zeroes = SetIs[(I64, I64)].create()
-    let to_check = Array[(I64, I64)].create()
 
     // First, advance every octopus by 1
     for (coord, level) in board.pairs() do
       let new_level = (level + 1).mod(10)
       board.update(coord, new_level)
 
-      // If this octopus would flash, then add it to `zeroes`, and add
-      // all its neighbours (in all 8 directions)
+      // If this octopus would flash, add all its neighbours
+      // (in all 8 directions)
       if new_level == 0 then
         glows = glows + 1
-        zeroes.set(coord)
         for (dx, dy) in deltas.values() do
           to_check.push(
             (coord._1 + dx, coord._2 + dy)
@@ -118,21 +124,22 @@ actor Main
     while true do
       try
         let neigh_coord = to_check.shift()?
-        // If this octopus flashed, skip it, it won't increase its level
-        if zeroes.contains(neigh_coord) then
-          continue
-        end
 
         try
           // It might be a fake neighbour (outside board range), so wrap
           // in a try ... end
           let neigh_level = board(neigh_coord)?
+
+          // If this octopus flashed, skip it, it won't increase its level
+          if neigh_level == 0 then
+            continue
+          end
+
           let new_level = (neigh_level + 1).mod(10)
           board.update(neigh_coord, new_level)
 
           if new_level == 0 then
             glows = glows + 1
-            zeroes.set(neigh_coord)
             for (dx, dy) in deltas.values() do
               to_check.push(
                 (neigh_coord._1 + dx, neigh_coord._2 + dy)
@@ -146,7 +153,7 @@ actor Main
     end
 
     var synchronized = false
-    if zeroes.size() == board.size() then
+    if glows == board.size() then
       synchronized = true
     end
 

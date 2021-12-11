@@ -1,5 +1,5 @@
 all:
-	corral run -- ponyc -d -b dumbo . && ./dumbo
+	corral run -- ponyc -b dumbo . && ./dumbo
 
 clean:
 	rm dumbo
