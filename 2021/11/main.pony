@@ -36,7 +36,7 @@ primitive ParseInput
 
 
 actor Main
-  var path: String = "./input_sample.txt"
+  var path: String = "./input.txt"
 
   new create(env: Env) =>
     let steps: USize = 100
@@ -44,24 +44,48 @@ actor Main
       with file = OpenFile(FilePath(env.root as AmbientAuth, path)) as File
       do
         let board = ParseInput(file.lines())
-        silver(env.out, steps, board)
+        solve(env.out, steps, board)
       end
     else
       env.err.print("Error")
     end
 
-  fun tag silver(out: OutStream, steps: USize, board: Board) =>
+  fun tag solve(out: OutStream, steps: USize, board: Board) =>
     var acc: USize = 0
-    Debug("Before any steps:" + "\n" + PrintBoard(board))
-    for s in Range[USize](0, steps) do
-      acc = acc + step(board)
-      if (s.mod(10)) == 9 then
-        Debug("After step " + (s+1).string() + ":\n" + PrintBoard(board))
-      end
-    end
-    out.print("Flashes: " + acc.string())
+    var sync_step: (USize | None) = None
 
-  fun tag step(board: Board): USize =>
+    Debug("Before any steps:" + "\n" + PrintBoard(board))
+    var current_step: USize = 0
+    while true do
+      (let delta, let synchronized) = step(board)
+      if synchronized and (sync_step is None) then
+        sync_step = (current_step + 1)
+        if current_step >= steps then
+          break
+        end
+      end
+
+      if current_step < steps then
+        acc = acc + delta
+        if (current_step.mod(10)) == 9 then
+          Debug(
+            "After step " + (current_step+1).string() + ":\n" +
+            PrintBoard(board)
+          )
+        end
+      end
+      current_step = current_step + 1
+    end
+
+    out.print("Silver. Flashes after " + steps.string() + ": " + acc.string())
+    match sync_step
+    | None =>
+        out.print("Gold. Error, no sync steps")
+    | let s: USize =>
+        out.print("Gold. First synchronized on step " + s.string())
+    end
+
+  fun tag step(board: Board): (USize, Bool) =>
     let deltas = [as (I64, I64):
       (0, -1); (1, -1); (1, 0); (1, 1); (0, 1); (-1, 1); (-1, 0); (-1, -1)
     ]
@@ -121,4 +145,9 @@ actor Main
       end
     end
 
-    glows
+    var synchronized = false
+    if zeroes.size() == board.size() then
+      synchronized = true
+    end
+
+    (glows, synchronized)
