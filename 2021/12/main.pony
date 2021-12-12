@@ -31,6 +31,8 @@ class CavePath
   embed _path_so_far: Array[String] = _path_so_far.create()
   embed _visited: HashSet[String, StringHash] = _visited.create()
 
+  var _repeated_small_cave: (None | String) = None
+
   new create() => None
 
   fun ref push(v: String) =>
@@ -39,20 +41,43 @@ class CavePath
       _visited.set(v)
     end
 
+  fun ref push_repeated(v: String) =>
+    _repeated_small_cave = v
+    _path_so_far.push(v)
+
   fun contains(v: String): Bool =>
     _visited.contains(v)
 
-  fun nodes(): Iterator[this->String] =>
-    _path_so_far.values()
+  fun can_repeat(v: String): Bool =>
+    if (v.upper() == v) or (v == "start") then
+      return false
+    end
+
+    _repeated_small_cave is None
 
   fun last(): String ? =>
     _path_so_far(_path_so_far.size() - 1)?
+
+  fun string(): String iso^ =>
+    let size = _path_so_far.size()
+    let str = recover String.create(size) end
+    var first = true
+    for node in _path_so_far.values() do
+      if not first then
+        str.push(',')
+      else
+        first = false
+      end
+      str.append(node)
+    end
+    consume str
 
   fun clone(): CavePath ref^ =>
     let ret = CavePath.create()
     for n in _path_so_far.values() do
       ret.push(n)
     end
+    ret._repeated_small_cave = _repeated_small_cave
     ret
 
 actor Main
@@ -87,10 +112,15 @@ actor Main
         end
 
         for n in cave.neighbors(last) do
-          Debug("Neighbour of " + last + ": " + n)
           if not path.contains(n) then
             let new_path = path.clone()
+            Debug("Pushing " + n + " on " + path.string())
             new_path.push(n)
+            queue.push(new_path)
+          elseif path.can_repeat(n) then
+            let new_path = path.clone()
+            new_path.push_repeated(n)
+            Debug("Force pushing " + n + " after " + path.string())
             queue.push(new_path)
           end
         end
@@ -100,16 +130,6 @@ actor Main
     out.print("Found " + all_paths.size().string() + " possible paths")
     ifdef debug then
       for cave_path in all_paths.values() do
-        let str = recover String.create() end
-        var first = true
-        for node in cave_path.nodes() do
-          if not first then
-            str.push(',')
-          else
-            first = false
-          end
-          str.append(node)
-        end
-        Debug(consume str)
+        Debug(cave_path.string())
       end
     end
