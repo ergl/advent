@@ -1,7 +1,7 @@
 use "files"
 use "collections"
 
-use "package:../graph"
+use "package:../../common/graph"
 use fifteen = "package:../15"
 
 type Pos is fifteen.RoomPosition

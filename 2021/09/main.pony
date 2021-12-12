@@ -1,4 +1,4 @@
-use "../../2019/graph"
+use "../../common/graph"
 
 use "files"
 use "itertools"

@@ -2,7 +2,7 @@ use "collections"
 use "debug"
 
 use "package:../07"
-use "package:../graph"
+use "package:../../common/graph"
 use eleven = "package:../11"
 
 primitive North fun string(): String => "North"
