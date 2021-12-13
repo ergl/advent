@@ -10,6 +10,9 @@ type Moves is Array[(Direction, I64)]
 
 class Sheet
   embed _repr: MapIs[(I64, I64), U32] = _repr.create()
+  embed _index_x: MapIs[I64, SetIs[I64]] = _index_x.create()
+  embed _index_y: MapIs[I64, SetIs[I64]] = _index_y.create()
+
   var last_row: I64 = 0
   var last_col: I64 = 0
 
@@ -17,6 +20,26 @@ class Sheet
 
   fun ref insert(point: (I64, I64)) =>
     _repr.insert(point, 1)
+    _insert_index(point)
+
+  fun ref _insert_index(point: (I64, I64)) =>
+    (let x, let y) = point
+    if not _index_x.contains(x) then
+      _index_x(x) = SetIs[I64]
+    end
+    try _index_x(x)?.set(y) end
+
+    if not _index_y.contains(y) then
+      _index_y(y) = SetIs[I64]
+    end
+    try _index_y(y)?.set(x) end
+
+  fun ref _clear_index(point: (I64, I64)) =>
+    (let x, let y) = point
+    try
+      _index_x(x)?.unset(y)
+      _index_y(y)?.unset(x)
+    end
 
   fun count_points(): USize =>
     var visible: USize = 0
@@ -27,9 +50,16 @@ class Sheet
     end
     visible
 
+  // Clone, otherwise we'll update the index while we iterate over it - a no-no
+  fun points_at_x(x: I64): SetIs[I64] box ? => _index_x(x)?.clone()
+  fun points_at_y(y: I64): SetIs[I64] box ? => _index_y(y)?.clone()
+
   fun ref move_point_up(point: (I64, I64), delta: I64) =>
     (let x, let y) = point
     let new_y = y - delta
+
+    _clear_index(point)
+
     try
       // Remove the old point entirely, but check how many points were there
       (_, let old_count) = _repr.remove(point)?
@@ -39,11 +69,16 @@ class Sheet
         old_count,
         {(current, provided) => current + provided}
       )
+
+      _insert_index((x, new_y))
     end
 
   fun ref move_point_left(point: (I64, I64), delta: I64) =>
     (let x, let y) = point
     let new_x = x - delta
+
+    _clear_index(point)
+
     try
       // Remove the old point entirely, but check how many points were there
       (_, let old_count) = _repr.remove(point)?
@@ -53,6 +88,8 @@ class Sheet
         old_count,
         {(current, provided) => current + provided}
       )
+
+      _insert_index((new_x, y))
     end
 
   fun string(): String iso^ =>
@@ -72,6 +109,7 @@ class Sheet
     that.last_col = last_col
     for (point, sum) in _repr.pairs() do
       that._repr.insert(point, sum)
+      that._insert_index(point)
     end
     that
 
@@ -126,26 +164,30 @@ actor Main
     try
       match moves(0)?
       | (Up, let at: I64) =>
-        // TODO: don't cover all range, we will want to iterate only over
-        // points that are visible.
         for y in Range[I64](at+1, sheet.last_row + 1) do
           let delta = 2 * (y - at)
-          for x in Range[I64](0, sheet.last_col + 1) do
-            sheet.move_point_up((x, y), delta)
+          try
+            let points = sheet.points_at_y(y)?
+            for x in points.values() do
+              sheet.move_point_up((x, y), delta)
+            end
           end
         end
         sheet.last_row = at
       | (Left, let at: I64) =>
         for x in Range[I64](at + 1, sheet.last_col + 1) do
           let delta = 2 * (x - at)
-          for y in Range[I64](0, sheet.last_row + 1) do
-            sheet.move_point_left((x, y), delta)
+          try
+            let points = sheet.points_at_x(x)?
+            for y in points.values() do
+              sheet.move_point_left((x, y), delta)
+            end
           end
         end
         sheet.last_col = at
       end
     end
-    out.print("Visible points: " + sheet.count_points().string())
+    out.print("Silver: Visible points: " + sheet.count_points().string())
 
   fun tag gold(out: OutStream, sheet: Sheet, moves: Moves box) =>  
     for move in moves.values() do
@@ -153,19 +195,25 @@ actor Main
       | (Up, let at: I64) =>
         for y in Range[I64](at+1, sheet.last_row + 1) do
           let delta = 2 * (y - at)
-          for x in Range[I64](0, sheet.last_col + 1) do
-            sheet.move_point_up((x, y), delta)
+          try
+            let points = sheet.points_at_y(y)?
+            for x in points.values() do
+              sheet.move_point_up((x, y), delta)
+            end
           end
         end
         sheet.last_row = at
       | (Left, let at: I64) =>
         for x in Range[I64](at + 1, sheet.last_col + 1) do
           let delta = 2 * (x - at)
-          for y in Range[I64](0, sheet.last_row + 1) do
-            sheet.move_point_left((x, y), delta)
+          try
+            let points = sheet.points_at_x(x)?
+            for y in points.values() do
+              sheet.move_point_left((x, y), delta)
+            end
           end
         end
         sheet.last_col = at
       end
     end
-    out.print(sheet.string())
+    out.print("Gold:\n" + sheet.string())
