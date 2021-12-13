@@ -97,7 +97,7 @@ class Sheet
     for y in Range[I64](0, last_row + 1) do
       for x in Range[I64](0, last_col + 1) do
         let point_count = _repr.get_or_else((x, y), 0)
-        str.push(if point_count > 0 then '#' else '.' end)
+        str.append(if point_count > 0 then "⬛️" else "⬜️" end)
       end
       str.push('\n')
     end
