@@ -18,24 +18,42 @@ primitive ArrayToString
     end
     consume str
 
-primitive IterPairs
-  fun apply(a: Array[U8]): Iterator[(U8, U8)] =>
-    object
-      let _buffer: Array[U8] = a
-      let _buffer_size: USize = a.size()
-      var _index: USize = 0
+// primitive IterPairs
+//   fun apply(a: Array[U8]): Iterator[(U8, U8)] =>
+//     object
+//       let _buffer: Array[U8] = a
+//       let _buffer_size: USize = a.size()
+//       var _index: USize = 0
 
-      fun ref has_next(): Bool =>
-        _index <= (_buffer_size - 2)
+//       fun ref has_next(): Bool =>
+//         _index <= (_buffer_size - 2)
 
-      fun ref next(): (U8, U8) ? =>
-        let pair = (
-          _buffer(_index)?,
-          _buffer(_index + 1)?
-        )
-        _index = _index + 1
-        pair
-    end
+//       fun ref next(): (U8, U8) ? =>
+//         let pair = (
+//           _buffer(_index)?,
+//           _buffer(_index + 1)?
+//         )
+//         _index = _index + 1
+//         pair
+//     end
+
+// primitive IterPairsReverse
+//   fun apply(a: Array[U8]): Iterator[(U8, U8)] =>
+//     object
+//       let _buffer: Array[U8] = a
+//       var _index: USize = (a.size() - 1)
+
+//       fun ref has_next(): Bool =>
+//         _index > 0
+
+//       fun ref next(): (U8, U8) ? =>
+//         let pair = (
+//           _buffer(_index - 1)?,
+//           _buffer(_index)?
+//         )
+//         _index = _index - 1
+//         pair
+//     end
 
 primitive ParseInput
   fun apply(lines: FileLines): (Template val, Insertions val) ? =>
@@ -92,22 +110,14 @@ actor Main
     let polymer = template.clone()
     var step: U8 = 0
 
-    // Track index, thing to insert
-    let insertions = Array[(USize, U8)].create()
     Debug("Template: " + ArrayToString(polymer))
     try
       while step < steps do
-        insertions.clear()
-        var index: USize = 0
-        // TODO: We could look up changes and insert in a single pass
-        for pair in IterPairs(polymer) do
-          insertions.unshift(
-            (index+1, changes_table(pair)?)
-          )
-          index = index + 1
-        end
-        for (at_index, insert) in insertions.values() do
-          polymer.insert(at_index, insert)?
+        var index: USize = 1
+        while index < polymer.size() do
+          let pair = (polymer(index - 1)?, polymer(index)?)
+          polymer.insert(index, changes_table(pair)?)?
+          index = index + 2
         end
         ifdef debug then
           Debug(
@@ -119,13 +129,13 @@ actor Main
       end
     end
 
-    let frequencies = MapIs[U8, U32].create()
+    let frequencies = MapIs[U8, U64].create()
     for elt in polymer.values() do
       frequencies.upsert(elt, 1, {(c,p) => c + p})
     end
 
-    (var max_freq: U32, var max_value: U8) = (0, 0)
-    (var min_freq: U32, var min_value: U8) = (U32.max_value(), 0)
+    (var max_freq: U64, var max_value: U8) = (0, 0)
+    (var min_freq: U64, var min_value: U8) = (U64.max_value(), 0)
 
     for (c, freq) in frequencies.pairs() do
       if freq > max_freq then
