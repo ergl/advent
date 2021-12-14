@@ -18,43 +18,6 @@ primitive ArrayToString
     end
     consume str
 
-// primitive IterPairs
-//   fun apply(a: Array[U8]): Iterator[(U8, U8)] =>
-//     object
-//       let _buffer: Array[U8] = a
-//       let _buffer_size: USize = a.size()
-//       var _index: USize = 0
-
-//       fun ref has_next(): Bool =>
-//         _index <= (_buffer_size - 2)
-
-//       fun ref next(): (U8, U8) ? =>
-//         let pair = (
-//           _buffer(_index)?,
-//           _buffer(_index + 1)?
-//         )
-//         _index = _index + 1
-//         pair
-//     end
-
-// primitive IterPairsReverse
-//   fun apply(a: Array[U8]): Iterator[(U8, U8)] =>
-//     object
-//       let _buffer: Array[U8] = a
-//       var _index: USize = (a.size() - 1)
-
-//       fun ref has_next(): Bool =>
-//         _index > 0
-
-//       fun ref next(): (U8, U8) ? =>
-//         let pair = (
-//           _buffer(_index - 1)?,
-//           _buffer(_index)?
-//         )
-//         _index = _index - 1
-//         pair
-//     end
-
 primitive ParseInput
   fun apply(lines: FileLines): (Template val, Insertions val) ? =>
     let template = recover Template.create() end
@@ -95,43 +58,37 @@ actor Main
       with file = OpenFile(FilePath(env.root as AmbientAuth, path)) as File
       do
         (let template, let insertions) = ParseInput(file.lines())?
-        silver(env.out, template, insertions, 10)
+        solve(env.out, template, insertions, 10)
       end
     else
       env.err.print("Error")
     end
 
-  fun tag silver(
+  fun tag solve(
     out: OutStream,
     template: Template val,
     changes_table: Insertions val,
     steps: U8)
   =>
-    let polymer = template.clone()
-    var step: U8 = 0
-
-    Debug("Template: " + ArrayToString(polymer))
-    try
-      while step < steps do
-        var index: USize = 1
-        while index < polymer.size() do
-          let pair = (polymer(index - 1)?, polymer(index)?)
-          polymer.insert(index, changes_table(pair)?)?
-          index = index + 2
-        end
-        ifdef debug then
-          Debug(
-            "After step " + (step+1).string() + ": " +
-            ArrayToString(polymer)
-          )
-        end
-        step = step + 1
-      end
-    end
-
     let frequencies = MapIs[U8, U64].create()
-    for elt in polymer.values() do
-      frequencies.upsert(elt, 1, {(c,p) => c + p})
+    var index: USize = 0
+    try
+      let first = template(0)?
+      frequencies.upsert(first, 1, {(c,p) => c + p})
+      while index < (template.size() - 1) do
+        let left = template(index)?
+        let right = template(index + 1)?
+        frequencies.upsert(right, 1, {(c,p) => c + p})
+        expand_pair(
+          left,
+          right,
+          0,
+          steps,
+          changes_table,
+          frequencies
+        )
+        index = index + 1
+      end
     end
 
     (var max_freq: U64, var max_value: U8) = (0, 0)
@@ -155,5 +112,26 @@ actor Main
       "Least common: " + ASCII(min_value) +
       " appears " + min_freq.string() + " times."
     )
-    out.print("Silver. Solution: " + (max_freq - min_freq).string())
+    out.print("Solution: " + (max_freq - min_freq).string())
 
+  fun tag expand_pair(
+    a: U8,
+    b: U8,
+    step: U8,
+    steps: U8,
+    changes: Insertions val,
+    freqs: MapIs[U8, U64])
+  =>
+    if step == steps then
+      return
+    end
+
+    try
+      let c = changes((a, b))?
+      freqs.upsert(c, 1, {(c,p) => c + p})
+      ifdef debug then
+        Debug(ASCII(a) + " plus " + ASCII(b) + " generates " + ASCII(c))
+      end
+      expand_pair(a, c, step + 1, steps, changes, freqs)
+      expand_pair(c, b, step + 1, steps, changes, freqs)
+    end
