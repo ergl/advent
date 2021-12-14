@@ -74,18 +74,19 @@ actor Main
     var index: USize = 0
     try
       let first = template(0)?
-      frequencies.upsert(first, 1, {(c,p) => c + p})
+      let stack = Array[(U8, U8, U8)].create()
+      frequencies.insert(first, 1 + frequencies.get_or_else(first, 0))
       while index < (template.size() - 1) do
         let left = template(index)?
         let right = template(index + 1)?
-        frequencies.upsert(right, 1, {(c,p) => c + p})
+        frequencies.insert(right, 1 + frequencies.get_or_else(right, 0))
         expand_pair(
           left,
           right,
-          0,
           steps,
           changes_table,
-          frequencies
+          frequencies,
+          stack
         )
         index = index + 1
       end
@@ -117,21 +118,25 @@ actor Main
   fun tag expand_pair(
     a: U8,
     b: U8,
-    step: U8,
     steps: U8,
     changes: Insertions val,
-    freqs: MapIs[U8, U64])
+    freqs: MapIs[U8, U64],
+    stack: Array[(U8, U8, U8)])
   =>
-    if step == steps then
-      return
-    end
-
+    stack.unshift((a, b, 0))
     try
-      let c = changes((a, b))?
-      freqs.upsert(c, 1, {(c,p) => c + p})
-      ifdef debug then
-        Debug(ASCII(a) + " plus " + ASCII(b) + " generates " + ASCII(c))
+      while true do
+        (let left, let right, let step) = stack.shift()?
+        if step < steps then
+          let c = changes((left, right))?
+          freqs.insert(c, 1 + freqs.get_or_else(c, 0))
+          ifdef debug then
+            Debug(
+              ASCII(left) + " plus " + ASCII(right) + " generates " + ASCII(c)
+            )
+          end
+          stack.unshift((c, right, step + 1))
+          stack.unshift((left, c, step + 1))
+        end
       end
-      expand_pair(a, c, step + 1, steps, changes, freqs)
-      expand_pair(c, b, step + 1, steps, changes, freqs)
     end
