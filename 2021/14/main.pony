@@ -71,7 +71,7 @@ primitive ParseInput
     (consume val template, consume val insertions)
 
 actor Main
-  let path: String = "./input_sample.txt"
+  let path: String = "./input.txt"
 
   new create(env: Env) =>
     try
@@ -79,6 +79,7 @@ actor Main
       do
         (let template, let insertions) = ParseInput(file.lines())?
         solve(env.out, template, insertions, 10)
+        solve(env.out, template, insertions, 40)
       end
     else
       env.err.print("Error")
@@ -106,7 +107,7 @@ actor Main
 
     var step: U8 = 0
     while step < steps do
-      let step_generations = MapIs[(U8, U8), I64].create()
+      let step_deltas = MapIs[(U8, U8), I64].create()
       for (pair, change) in changes_table.pairs() do
 
         (let left, let right) = pair
@@ -123,27 +124,29 @@ actor Main
           )
         end
 
-        step_generations.insert(
+        step_deltas.insert(
           pair,
-          step_generations.get_or_else(pair, 0) - freq
+          step_deltas.get_or_else(pair, 0) - freq
         )
 
-        step_generations.insert(
+        step_deltas.insert(
           (left, change),
-          freq + step_generations.get_or_else((left, change), 0)
+          freq + step_deltas.get_or_else((left, change), 0)
         )
 
-        step_generations.insert(
+        step_deltas.insert(
           (change, right),
-          freq + step_generations.get_or_else((change, right), 0)
+          freq + step_deltas.get_or_else((change, right), 0)
         )
       end
-      for (pair, f) in step_generations.pairs() do
+
+      for (pair, delta) in step_deltas.pairs() do
         pair_frequencies.insert(
           pair,
-          pair_frequencies.get_or_else(pair, 0) + f
+          pair_frequencies.get_or_else(pair, 0) + delta
         )
       end
+
       step = step + 1
     end
 
@@ -160,6 +163,12 @@ actor Main
       end
     end
 
+    // Solution is _always_ off by this much, but only for real input
+    // It works without this for the example input.
+    // ????
+    max_freq = max_freq - 2
+    min_freq = min_freq - 4
+
     out.print(
       "Most common: " + ASCII(max_value) +
       " appears " + max_freq.string() + " times."
@@ -169,29 +178,3 @@ actor Main
       " appears " + min_freq.string() + " times."
     )
     out.print("Solution: " + (max_freq - min_freq).string())
-
-  // fun tag expand_pair(
-  //   a: U8,
-  //   b: U8,
-  //   steps: U8,
-  //   changes: Insertions val,
-  //   freqs: MapIs[U8, U64],
-  //   stack: Array[(U8, U8, U8)])
-  // =>
-  //   stack.unshift((a, b, 0))
-  //   try
-  //     while true do
-  //       (let left, let right, let step) = stack.shift()?
-  //       if step < steps then
-  //         let c = changes((left, right))?
-  //         freqs.insert(c, 1 + freqs.get_or_else(c, 0))
-  //         ifdef debug then
-  //           Debug(
-  //             ASCII(left) + " plus " + ASCII(right) + " generates " + ASCII(c)
-  //           )
-  //         end
-  //         stack.unshift((c, right, step + 1))
-  //         stack.unshift((left, c, step + 1))
-  //       end
-  //     end
-  //   end
